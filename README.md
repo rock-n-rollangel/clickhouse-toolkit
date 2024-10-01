@@ -14,13 +14,13 @@ A customizable SQL query builder for [ClickHouse](https://clickhouse.com/) datab
 Install the package via npm:
 
 ```bash
-npm install @your-package-name/clickhouse-query-builder
+npm install clickhouse-toolkit
 ```
 
 ## Usage
 
 ```typescript
-import { SelectQueryBuilder } from '@your-package-name/clickhouse-query-builder'
+import { SelectQueryBuilder } from 'clickhouse-toolkit'
 
 // Example: Select with WHERE and JOIN
 const qb = new SelectQueryBuilder()
