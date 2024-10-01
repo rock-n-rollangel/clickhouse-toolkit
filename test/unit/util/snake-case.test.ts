@@ -1,4 +1,4 @@
-import { snakeCase } from '@/util/string'
+import { snakeCase } from '../../../src/util/string'
 
 describe('snakeCase', () => {
   it('should return lowercase snake case string', () => {

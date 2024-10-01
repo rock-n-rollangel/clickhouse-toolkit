@@ -1,7 +1,7 @@
-import { ObjectLiteral } from '@/types/object-literal'
+import { ObjectLiteral } from '../types/object-literal'
 import { QueryBuilder } from './query-builder'
-import { Params } from '@/types/params'
-import { QueryBuilderCallback } from '@/types/query-builder-callback'
+import { Params } from '../types/params'
+import { QueryBuilderCallback } from '../types/query-builder-callback'
 import { WhereExpressionBuilder } from './where-expression-builder'
 
 export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionBuilder {

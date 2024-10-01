@@ -1,4 +1,4 @@
-import { ColumnType } from '@/types/data-types'
+import { ColumnType } from '../../../types/data-types'
 
 export class ColumnOptions {
   type: ColumnType

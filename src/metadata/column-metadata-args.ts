@@ -1,4 +1,4 @@
-import { ColumnOptions } from '@/decorators/column/options/column-options'
+import { ColumnOptions } from '../decorators/column/options/column-options'
 
 export class ColumnMetadataArgs {
   // eslint-disable-next-line @typescript-eslint/ban-types

@@ -1,5 +1,5 @@
-import { QueryBuilder } from '@/query-builder/query-builder'
-import { registerQueryBuilders } from '@/util/register-query-builders'
+import { QueryBuilder } from '../../../src/query-builder/query-builder'
+import { registerQueryBuilders } from '../../../src/util/register-query-builders'
 
 describe('registerQueryBuilders', () => {
   it('should register query builder classes', () => {

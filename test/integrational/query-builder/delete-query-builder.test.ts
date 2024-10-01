@@ -1,13 +1,13 @@
-import { Connection } from '@/connection/connection'
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { SelectQueryBuilder } from '@/query-builder/select-query-builder'
-import { Table } from '@/schema-builder/table'
+import { Connection } from '../../../src/connection/connection'
+import { SchemaMetadata } from '../../../src/metadata/schema-metadata'
+import { SelectQueryBuilder } from '../../../src/query-builder/select-query-builder'
+import { Table } from '../../../src/schema-builder/table'
 import { randomUUID, randomInt } from 'crypto'
 import { ConnectionOptions } from '../../things/connection-options'
 import { TestSchema } from '../../things/schemas/test-schema'
 import { ClickHouseError } from '@clickhouse/client'
-import { Column } from '@/decorators/column/column'
-import { Schema } from '@/decorators/schema/schema'
+import { Column } from '../../../src/decorators/column/column'
+import { Schema } from '../../../src/decorators/schema/schema'
 
 /**
  * Schema for this test file

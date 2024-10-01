@@ -1,4 +1,4 @@
-import { Connection } from '@/connection/connection'
+import { Connection } from '../../src/connection/connection'
 
 export async function countTables(connection: Connection, tableName: string): Promise<number> {
   const result = await connection.query<{ count: string }>(`

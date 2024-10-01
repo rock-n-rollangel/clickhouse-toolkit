@@ -1,9 +1,9 @@
-import { ObjectLiteral } from '@/types/object-literal'
-import { TableNameError } from '@/errors/table-name'
+import { ObjectLiteral } from '../types/object-literal'
+import { TableNameError } from '../errors/table-name'
 import { UpdateValueNotSetError } from '../errors/update-value-not-set'
 import { QueryBuilder } from './query-builder'
-import { Params } from '@/types/params'
-import { QueryBuilderCallback } from '@/types/query-builder-callback'
+import { Params } from '../types/params'
+import { QueryBuilderCallback } from '../types/query-builder-callback'
 import { WhereExpressionBuilder } from './where-expression-builder'
 
 export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionBuilder {

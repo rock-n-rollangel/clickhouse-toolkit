@@ -1,4 +1,4 @@
-import { getMetadataArgsStorage } from '@/globals'
+import { getMetadataArgsStorage } from '../../globals'
 import { ColumnOptions } from './options/column-options'
 
 export function Column(options: ColumnOptions): PropertyDecorator {

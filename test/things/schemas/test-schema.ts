@@ -1,5 +1,5 @@
-import { Column } from '@/decorators/column/column'
-import { Schema } from '@/decorators/schema/schema'
+import { Column } from '../../../src/decorators/column/column'
+import { Schema } from '../../../src/decorators/schema/schema'
 
 @Schema({ engine: 'MergeTree' })
 export class TestSchema {

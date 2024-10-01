@@ -1,12 +1,12 @@
 import { QueryBuilder } from './query-builder'
-import { SelectStatementError } from '@/errors/select-empty'
-import { TableNameError } from '@/errors/table-name'
-import { QueryBuilderCallback } from '@/types/query-builder-callback'
-import { Params } from '@/types/params'
-import { ObjectLiteral } from '@/types/object-literal'
+import { SelectStatementError } from '../errors/select-empty'
+import { TableNameError } from '../errors/table-name'
+import { QueryBuilderCallback } from '../types/query-builder-callback'
+import { Params } from '../types/params'
+import { ObjectLiteral } from '../types/object-literal'
 import { WhereExpressionBuilder } from './where-expression-builder'
 import { JoinAttribute } from './join-attribute'
-import { InstanceChecker } from '@/util/instance-checker'
+import { InstanceChecker } from '../util/instance-checker'
 
 export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionBuilder {
   readonly '@instanceof' = Symbol.for('SelectQueryBuilder')

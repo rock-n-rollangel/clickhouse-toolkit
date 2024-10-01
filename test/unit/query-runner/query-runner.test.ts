@@ -1,9 +1,9 @@
-import { QueryRunner } from '@/query-runner/query-runner'
-import { Connection } from '@/connection/connection'
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { Table } from '@/schema-builder/table'
-import { ColumnMetadata } from '@/metadata/column-metadata'
-import { Engine } from '@/types/engine'
+import { QueryRunner } from '../../../src/query-runner/query-runner'
+import { Connection } from '../../../src/connection/connection'
+import { SchemaMetadata } from '../../../src/metadata/schema-metadata'
+import { Table } from '../../../src/schema-builder/table'
+import { ColumnMetadata } from '../../../src/metadata/column-metadata'
+import { Engine } from '../../../src/types/engine'
 
 describe('QueryRunner', () => {
   let mockConnection: jest.Mocked<Connection>

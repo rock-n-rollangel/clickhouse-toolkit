@@ -1,4 +1,4 @@
-import { SelectQueryBuilder } from '@/query-builder/select-query-builder'
+import { SelectQueryBuilder } from '../../../query-builder/select-query-builder'
 import { SchemaOptionsBase } from './schema-options-base'
 
 export interface MaterializedViewSchemaOptions extends SchemaOptionsBase {

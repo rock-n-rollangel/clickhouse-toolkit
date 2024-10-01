@@ -1,19 +1,31 @@
 {
   "name": "clickquery",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A customizable SQL query builder for ClickHouse databases.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "README.md", "LICENSE"],
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:rock-n-rollangel/clickquery.git"
+  },
+  "engines": {
+    "node": ">=16"
+  },
   "scripts": {
-    "build": "tsc",
-    "start": "ts-node src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint 'src/**/*.{ts,js}'",
     "format": "prettier --write 'src/**/*.{ts,js}'"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["clickhouse", "query-builder"],
+  "author": {
+    "name": "Valeriy Dolgov",
+    "email": "somebytes@duck.com"
+  },
   "license": "MIT",
   "dependencies": {
     "@clickhouse/client": "^1.6.0"

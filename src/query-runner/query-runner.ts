@@ -1,11 +1,11 @@
-import { Params } from '@/types/params'
-import { Connection } from '@/connection/connection'
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { InstanceChecker } from '@/util/instance-checker'
-import { Table } from '@/schema-builder/table'
-import { ColumnMetadata } from '@/metadata/column-metadata'
-import { Engine } from '@/types/engine'
-import { QueryBuilderCallback } from '@/types/query-builder-callback'
+import { Params } from '../types/params'
+import { Connection } from '../connection/connection'
+import { SchemaMetadata } from '../metadata/schema-metadata'
+import { InstanceChecker } from '../util/instance-checker'
+import { Table } from '../schema-builder/table'
+import { ColumnMetadata } from '../metadata/column-metadata'
+import { Engine } from '../types/engine'
+import { QueryBuilderCallback } from '../types/query-builder-callback'
 
 export class QueryRunner {
   readonly '@instanceof' = Symbol.for('QueryRunner')

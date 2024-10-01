@@ -1,6 +1,6 @@
-import { getMetadataArgsStorage } from '@/globals'
+import { getMetadataArgsStorage } from '../../globals'
 import { SchemaOptions } from './options/schema-options'
-import { snakeCase } from '@/util/string'
+import { snakeCase } from '../../util/string'
 import { MaterializedViewSchemaOptions } from './options/materialized-options'
 
 export function Schema(): ClassDecorator

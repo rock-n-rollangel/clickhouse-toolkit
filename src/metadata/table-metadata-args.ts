@@ -1,5 +1,5 @@
-import { SelectQueryBuilder } from '@/query-builder/select-query-builder'
-import { Engine } from '@/types/engine'
+import { SelectQueryBuilder } from '../query-builder/select-query-builder'
+import { Engine } from '../types/engine'
 
 export class TableMetadataArgs {
   // eslint-disable-next-line @typescript-eslint/ban-types
