@@ -1,6 +1,5 @@
 src/
 tsconfig.json
-.git/
 .vscode/
 .*.swp
 ._*
