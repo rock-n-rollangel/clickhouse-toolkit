@@ -13,7 +13,7 @@
   "keywords": ["clickhouse", "query-builder"],
   "repository": {
     "type": "git",
-    "url": "git@github.com:rock-n-rollangel/clickquery.git"
+    "url": "git@github.com:rock-n-rollangel/clickhouse-toolkit.git"
   },
   "engines": {
     "node": ">=16"
