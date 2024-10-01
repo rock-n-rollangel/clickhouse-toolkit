@@ -71,7 +71,7 @@ qb.innerJoin('orders', 'o', 'u.id = o.user_id')
 Builds the final SQL query string and executes it.
 
 ```typescript
-const sql = qb.execute<{ id: number; name: string }>()
+const result = qb.execute<{ id: number; name: string }>()
 ```
 
 ## Customization
