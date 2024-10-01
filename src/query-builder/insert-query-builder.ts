@@ -1,5 +1,5 @@
-import { ObjectLiteral } from '@/types/object-literal'
-import { TableSchema } from '@/types/table-schema'
+import { ObjectLiteral } from '../types/object-literal'
+import { TableSchema } from '../types/table-schema'
 import { QueryBuilder } from './query-builder'
 
 export class InsertQueryBuilder extends QueryBuilder {

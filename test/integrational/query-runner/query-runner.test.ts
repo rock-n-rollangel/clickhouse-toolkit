@@ -1,8 +1,8 @@
-import { Connection } from '@/connection/connection'
+import { Connection } from '../../../src/connection/connection'
 import { ConnectionOptions } from '../../things/connection-options'
-import { Table } from '@/schema-builder/table'
-import { Schema } from '@/decorators/schema/schema'
-import { Column } from '@/decorators/column/column'
+import { Table } from '../../../src/schema-builder/table'
+import { Schema } from '../../../src/decorators/schema/schema'
+import { Column } from '../../../src/decorators/column/column'
 import { countTables } from '../../things/count-tables'
 
 const RENAME_STRING = 'query_runner_test_schema_renamed'

@@ -1,6 +1,6 @@
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { Connection } from '@/connection/connection'
-import { ColumnMetadataArgs } from '@/metadata/column-metadata-args'
+import { SchemaMetadata } from '../../../src/metadata/schema-metadata'
+import { Connection } from '../../../src/connection/connection'
+import { ColumnMetadataArgs } from '../../../src/metadata/column-metadata-args'
 
 describe('EntityMetadata', () => {
   let mockConnection: Connection

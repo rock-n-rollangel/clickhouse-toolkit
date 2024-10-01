@@ -1,5 +1,5 @@
-import { ObjectLiteral } from '@/types/object-literal'
-import { Params } from '@/types/params'
+import { ObjectLiteral } from '../types/object-literal'
+import { Params } from '../types/params'
 
 export interface WhereExpressionBuilder {
   where(statement: string, params?: Params): this

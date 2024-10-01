@@ -1,14 +1,15 @@
 import { ClickHouseClient, createClient, DataFormat, InsertResult } from '@clickhouse/client'
-import { SchemaMetadataNotFoundError } from '@/errors/schema-not-found'
-import { Params } from '@/types/params'
-import { SelectQueryBuilder } from '@/query-builder/select-query-builder'
-import { QueryRunner } from '@/query-runner/query-runner'
-import { ConnectionOptions } from '@/types/connection-options'
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { getMetadataArgsStorage } from '@/globals'
-import { registerQueryBuilders } from '@/util/register-query-builders'
-import { DatabaseSchema } from '@/types/database-schema'
-import { SchemaBuilder } from '@/schema-builder/schema-builder'
+import { SchemaMetadataNotFoundError } from '../errors/schema-not-found'
+import { Params } from '../types/params'
+import { SelectQueryBuilder } from '../query-builder/select-query-builder'
+import { QueryRunner } from '../query-runner/query-runner'
+import { ConnectionOptions } from '../types/connection-options'
+import { SchemaMetadata } from '../metadata/schema-metadata'
+import { getMetadataArgsStorage } from '../globals'
+import { registerQueryBuilders } from '../util/register-query-builders'
+import { DatabaseSchema } from '../types/database-schema'
+import { SchemaBuilder } from '../schema-builder/schema-builder'
+import { ConnectionOptionsError } from '../errors/connection-options'
 
 export class Connection {
   readonly '@instanceof' = Symbol.for('Connection')
@@ -115,6 +116,10 @@ export class Connection {
   }
 
   public static async initialize(options: ConnectionOptions): Promise<Connection> {
+    if (!options.database || !options.password || !options.username || !options.url) {
+      throw new ConnectionOptionsError()
+    }
+
     const instance = new Connection(options)
 
     if (options.synchronize === true) {

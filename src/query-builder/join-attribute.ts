@@ -1,4 +1,4 @@
-import { SchemaMetadata } from '@/metadata/schema-metadata'
+import { SchemaMetadata } from '../metadata/schema-metadata'
 
 export class JoinAttribute {
   readonly '@instanceof' = Symbol.for('JoinAttribute')

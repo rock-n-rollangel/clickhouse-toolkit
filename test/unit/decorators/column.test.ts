@@ -1,8 +1,8 @@
-import { getMetadataArgsStorage } from '@/globals'
-import { Column } from '@/decorators/column/column'
+import { getMetadataArgsStorage } from '../../../src/globals'
+import { Column } from '../../../src/decorators/column/column'
 
 const columns = []
-jest.mock('@/globals', () => ({
+jest.mock('../../../src/globals', () => ({
   getMetadataArgsStorage: jest.fn(() => ({
     columns: columns,
   })),

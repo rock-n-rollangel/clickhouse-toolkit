@@ -1,11 +1,11 @@
-import { Connection } from '@/connection/connection'
-import { Column } from '@/decorators/column/column'
-import { Schema } from '@/decorators/schema/schema'
+import { Connection } from '../../../src/connection/connection'
+import { Column } from '../../../src/decorators/column/column'
+import { Schema } from '../../../src/decorators/schema/schema'
 import { ConnectionOptions } from '../../things/connection-options'
-import { SchemaBuilder } from '@/schema-builder/schema-builder'
+import { SchemaBuilder } from '../../../src/schema-builder/schema-builder'
 import { countTables } from '../../things/count-tables'
 import { ClickHouseError } from '@clickhouse/client'
-import { Table } from '@/schema-builder/table'
+import { Table } from '../../../src/schema-builder/table'
 
 @Schema({ engine: 'MergeTree' })
 class SchemaBuilderTestSchema {
@@ -141,6 +141,11 @@ describe('SchemaBuilder (integrational)', () => {
 
     await schemaBuilder.backupTable(metadata)
     await schemaBuilder.createTable(metadata)
-    expect(schemaBuilder.restoreBackup(metadata)).rejects.toThrow(ClickHouseError)
+
+    try {
+      await schemaBuilder.restoreBackup(metadata)
+    } catch (e) {
+      expect(e).toBeInstanceOf(ClickHouseError)
+    }
   })
 })

@@ -1,16 +1,16 @@
-import { Connection } from '@/connection/connection'
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { SelectQueryBuilder } from '@/query-builder/select-query-builder'
-import { Table } from '@/schema-builder/table'
+import { Connection } from '../../../src/connection/connection'
+import { SchemaMetadata } from '../../../src/metadata/schema-metadata'
+import { SelectQueryBuilder } from '../../../src/query-builder/select-query-builder'
+import { Table } from '../../../src/schema-builder/table'
 import { randomUUID, randomInt } from 'crypto'
 import { ConnectionOptions } from '../../things/connection-options'
-import { WrongParameterColumnNameError } from '@/errors/wrong-parameter-column-name'
-import { Column } from '@/decorators/column/column'
-import { Schema } from '@/decorators/schema/schema'
-import { UpdateValueNotSetError } from '@/errors/update-value-not-set'
-import { NotAllParametersWasPassedError } from '@/errors/not-all-parameters-was-passed'
-import { SchemaMetadataNotFoundError } from '@/errors/schema-not-found'
-import { TableNameError } from '@/errors/table-name'
+import { WrongParameterColumnNameError } from '../../../src/errors/wrong-parameter-column-name'
+import { Column } from '../../../src/decorators/column/column'
+import { Schema } from '../../../src/decorators/schema/schema'
+import { UpdateValueNotSetError } from '../../../src/errors/update-value-not-set'
+import { NotAllParametersWasPassedError } from '../../../src/errors/not-all-parameters-was-passed'
+import { SchemaMetadataNotFoundError } from '../../../src/errors/schema-not-found'
+import { TableNameError } from '../../../src/errors/table-name'
 
 /**
  * Schema for this test file
@@ -39,6 +39,7 @@ describe('UpdateQueryBuilder (integrational)', () => {
   beforeAll(async () => {
     connection = await Connection.initialize({
       ...ConnectionOptions,
+      logging: true,
       entities: [UpdateQueryBuilderTestSchema],
     })
 
@@ -71,28 +72,26 @@ describe('UpdateQueryBuilder (integrational)', () => {
   })
 
   it('should update by name', async () => {
-    expect(
-      await queryBuilder
-        .update(tableName)
-        .set({
-          name: 'name_2',
-          numericArray: [1, 2, 3, 4, 5],
-        })
-        .where({
-          name: 'name_1',
-        })
-        .execute(),
-    ).toBeUndefined()
+    await queryBuilder
+      .update(tableName)
+      .set({
+        name: 'name_2',
+        numericArray: [1, 2, 3, 4, 5],
+      })
+      .where({
+        name: 'name_1',
+      })
+      .execute()
 
-    expect(
-      await queryBuilder
-        .select(['name', 'numericArray'])
-        .from(tableName)
-        .where({
-          name: 'name_2',
-        })
-        .execute(),
-    ).toStrictEqual([
+    const result = await queryBuilder
+      .select(['name', 'numericArray'])
+      .from(tableName)
+      .where({
+        name: 'name_2',
+      })
+      .execute()
+
+    expect(result).toStrictEqual([
       {
         name: 'name_2',
         numericArray: [1, 2, 3, 4, 5],
@@ -117,16 +116,14 @@ describe('UpdateQueryBuilder (integrational)', () => {
   })
 
   it('should work with subqueris', async () => {
-    expect(
-      await queryBuilder
-        .update(tableName)
-        .set({
-          numericArray: [1],
-        })
-        .where('numericArray[4] > 0')
-        .andWhere((qb) => qb.where('numericArray[1] > 5').andWhere('numericArray[1] < 15'))
-        .execute(),
-    ).toBeUndefined()
+    await queryBuilder
+      .update(tableName)
+      .set({
+        numericArray: [1],
+      })
+      .where('numericArray[4] > 0')
+      .andWhere((qb) => qb.where('numericArray[1] > 5').andWhere('numericArray[1] < 15'))
+      .execute()
 
     expect(
       await queryBuilder

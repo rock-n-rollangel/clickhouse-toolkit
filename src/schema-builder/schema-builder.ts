@@ -1,9 +1,9 @@
-import { Connection } from '@/connection/connection'
-import { QueryRunner } from '@/query-runner/query-runner'
-import { ColumnSchema } from '@/types/column-schema'
-import { TableSchema } from '@/types/table-schema'
+import { Connection } from '../connection/connection'
+import { QueryRunner } from '../query-runner/query-runner'
+import { ColumnSchema } from '../types/column-schema'
+import { TableSchema } from '../types/table-schema'
 import { Table } from './table'
-import { SchemaMetadata } from '@/metadata/schema-metadata'
+import { SchemaMetadata } from '../metadata/schema-metadata'
 
 /*
   1. Remove materialized views

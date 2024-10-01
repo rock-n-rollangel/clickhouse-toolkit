@@ -1,10 +1,10 @@
-import { Schema } from '@/decorators/schema/schema'
-import { getMetadataArgsStorage } from '@/globals'
-import { SchemaOptions } from '@/decorators/schema/options/schema-options'
-import { MaterializedViewSchemaOptions } from '@/decorators/schema/options/materialized-options'
+import { Schema } from '../../../src/decorators/schema/schema'
+import { getMetadataArgsStorage } from '../../../src/globals'
+import { SchemaOptions } from '../../../src/decorators/schema/options/schema-options'
+import { MaterializedViewSchemaOptions } from '../../../src/decorators/schema/options/materialized-options'
 
 const tables = []
-jest.mock('@/globals', () => ({
+jest.mock('../../../src/globals', () => ({
   getMetadataArgsStorage: jest.fn(() => ({
     tables: tables,
   })),

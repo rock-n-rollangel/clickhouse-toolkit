@@ -1,10 +1,10 @@
-import { ColumnMetadata } from '@/metadata/column-metadata'
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { QueryBuilder } from '@/query-builder/query-builder'
-import { SelectQueryBuilder } from '@/query-builder/select-query-builder'
-import { Engine } from '@/types/engine'
-import { MaterializedViewOptions } from '@/types/materialized-view-options'
-import { TableOptions } from '@/types/table-options'
+import { ColumnMetadata } from '../metadata/column-metadata'
+import { SchemaMetadata } from '../metadata/schema-metadata'
+import { QueryBuilder } from '../query-builder/query-builder'
+import { SelectQueryBuilder } from '../query-builder/select-query-builder'
+import { Engine } from '../types/engine'
+import { MaterializedViewOptions } from '../types/materialized-view-options'
+import { TableOptions } from '../types/table-options'
 
 export class Table {
   readonly '@instanceof' = Symbol.for('Table')

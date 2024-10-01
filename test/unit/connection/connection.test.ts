@@ -1,10 +1,11 @@
 import { createClient } from '@clickhouse/client'
-import { Connection } from '@/connection/connection'
-import { QueryRunner } from '@/query-runner/query-runner'
-import { SelectQueryBuilder } from '@/query-builder/select-query-builder'
-import { ConnectionOptions } from '@/types/connection-options'
-import { SchemaBuilder } from '@/schema-builder/schema-builder'
-import { registerQueryBuilders } from '@/util/register-query-builders'
+import { Connection } from '../../../src/connection/connection'
+import { QueryRunner } from '../../../src/query-runner/query-runner'
+import { SelectQueryBuilder } from '../../../src/query-builder/select-query-builder'
+import { ConnectionOptions } from '../../../src/types/connection-options'
+import { SchemaBuilder } from '../../../src/schema-builder/schema-builder'
+import { registerQueryBuilders } from '../../../src/util/register-query-builders'
+import { ConnectionOptionsError } from '../../../src/errors/connection-options'
 
 jest.mock('@clickhouse/client', () => {
   return {
@@ -15,10 +16,10 @@ jest.mock('@clickhouse/client', () => {
     }),
   }
 })
-jest.mock('@/query-runner/query-runner')
-jest.mock('@/query-builder/select-query-builder')
-jest.mock('@/schema-builder/schema-builder')
-jest.mock('@/util/register-query-builders.ts')
+jest.mock('../../../src/query-runner/query-runner')
+jest.mock('../../../src/query-builder/select-query-builder')
+jest.mock('../../../src/schema-builder/schema-builder')
+jest.mock('../../../src/util/register-query-builders.ts')
 
 describe('Connection', () => {
   let connectionOptions: ConnectionOptions
@@ -27,7 +28,7 @@ describe('Connection', () => {
     connectionOptions = {
       url: 'http://localhost:8123',
       username: 'default',
-      password: '',
+      password: 'password',
       database: 'test_db',
       settings: {},
       keepAlive: {
@@ -81,8 +82,8 @@ describe('Connection', () => {
   it('should execute a command', async () => {
     const connection = await Connection.initialize(connectionOptions)
 
-    const result = connection.command('CREATE TABLE test {id UInt32}')
-    expect(result).resolves.toBeUndefined()
+    const result = await connection.command('CREATE TABLE test {id UInt32}')
+    expect(result).toBeUndefined()
     expect(connection['client'].command).toHaveBeenCalledWith({
       query: 'CREATE TABLE test {id UInt32}',
       query_params: undefined,
@@ -96,12 +97,12 @@ describe('Connection', () => {
     })
     connection['client'].query = mockQuery
 
-    const result = connection.query('SELECT * FROM test', {})
+    const result = await connection.query('SELECT * FROM test', {})
     expect(mockQuery).toHaveBeenCalledWith({
       query: 'SELECT * FROM test',
       query_params: {},
     })
-    expect(result).resolves.toEqual([{ id: 1 }])
+    expect(result).toStrictEqual([{ id: 1 }])
   })
 
   it('should insert values into the table', async () => {
@@ -122,5 +123,18 @@ describe('Connection', () => {
 
     expect(createSchemaBuilderSpy).toHaveBeenCalled()
     expect(synchronizeSpy).toHaveBeenCalled()
+  })
+
+  it('should fail coz of required options not provided', async () => {
+    try {
+      await Connection.initialize({
+        url: '',
+        username: '',
+        password: '',
+        database: '',
+      })
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConnectionOptionsError)
+    }
   })
 })

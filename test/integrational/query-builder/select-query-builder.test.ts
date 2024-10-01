@@ -1,12 +1,12 @@
-import { Connection } from '@/connection/connection'
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { Table } from '@/schema-builder/table'
+import { Connection } from '../../../src/connection/connection'
+import { SchemaMetadata } from '../../../src/metadata/schema-metadata'
+import { Table } from '../../../src/schema-builder/table'
 import { ConnectionOptions } from '../../things/connection-options'
-import { SelectQueryBuilder } from '@/query-builder/select-query-builder'
+import { SelectQueryBuilder } from '../../../src/query-builder/select-query-builder'
 import { randomInt, randomUUID } from 'crypto'
-import { Column } from '@/decorators/column/column'
-import { Schema } from '@/decorators/schema/schema'
-import { SelectStatementError } from '@/errors/select-empty'
+import { Column } from '../../../src/decorators/column/column'
+import { Schema } from '../../../src/decorators/schema/schema'
+import { SelectStatementError } from '../../../src/errors/select-empty'
 
 /**
  * Schema for this test file

@@ -1,6 +1,6 @@
-import { SchemaMetadata } from '@/metadata/schema-metadata'
-import { ObjectLiteral } from '@/types/object-literal'
-import { Params } from '@/types/params'
+import { SchemaMetadata } from '../metadata/schema-metadata'
+import { ObjectLiteral } from '../types/object-literal'
+import { Params } from '../types/params'
 import { WhereClause } from '../types/where-clause'
 import { JoinAttribute } from './join-attribute'
 
