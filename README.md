@@ -1,4 +1,4 @@
-# ClickHouse Query Builder
+# ClickHouse Toolkit
 
 A customizable SQL query builder for [ClickHouse](https://clickhouse.com/) databases. This library provides a flexible and intuitive API to construct complex SQL queries with ease, supporting `SELECT`, `JOIN`, `WHERE`, and more.
 
