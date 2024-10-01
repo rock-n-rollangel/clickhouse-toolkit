@@ -66,7 +66,7 @@ Adds an `INNER JOIN`.
 qb.innerJoin('orders', 'o', 'u.id = o.user_id')
 ```
 
-### `execute<{ id: number; name: string }>(): string`
+### `execute<T>(): T[]`
 
 Builds the final SQL query string and executes it.
 
