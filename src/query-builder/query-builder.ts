@@ -110,7 +110,6 @@ export abstract class QueryBuilder {
 
   public delete(target: string | TableSchema): DeleteQueryBuilder {
     this.expressionMap.table = typeof target === 'string' ? target : target.name
-    this.expressionMap.metadata = this.connection.getMetadata(this.expressionMap.table)
     this.expressionMap.processedParameters = {}
 
     if (InstanceChecker.isDeleteQueryBuilder(this)) return this

@@ -11,7 +11,6 @@ export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionB
 
   public set(value: ObjectLiteral): UpdateQueryBuilder {
     this.expressionMap.updateValue = value
-    this.setParameters(value)
     return this
   }
 
