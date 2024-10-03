@@ -165,4 +165,10 @@ describe('UpdateQueryBuilder (integrational)', () => {
       expect(e).toBeInstanceOf(TableNameError)
     }
   })
+
+  it('shoult update regardless of the call order to `set` method', async () => {
+    await queryBuilder.update(tableName).where(`name = 'name_1'`).set({ name: 'name_3' }).execute()
+    const result = await queryBuilder.select().from(tableName).where({ name: 'name_3' }).execute()
+    expect(result).toHaveLength(1)
+  })
 })
