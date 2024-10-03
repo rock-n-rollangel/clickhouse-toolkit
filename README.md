@@ -2,6 +2,8 @@
 
 A customizable SQL query builder for [ClickHouse](https://clickhouse.com/) databases. This library provides a flexible and intuitive API to construct complex SQL queries with ease, supporting `SELECT`, `JOIN`, `WHERE`, and more.
 
+Examples available at [examples](https://github.com/rock-n-rollangel/clickhouse-toolkit-example).
+
 ## Features
 
 - **Fluent API:** Chain methods for building queries.
