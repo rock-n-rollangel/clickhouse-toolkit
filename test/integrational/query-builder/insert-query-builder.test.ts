@@ -34,7 +34,7 @@ describe('InsertQueryBuilder (integrational)', () => {
   beforeAll(async () => {
     connection = await Connection.initialize({
       ...ConnectionOptions,
-      entities: [InsertQueryBuilderTestSchema],
+      schemas: [InsertQueryBuilderTestSchema],
     })
 
     metadata = connection.getMetadata(InsertQueryBuilderTestSchema)

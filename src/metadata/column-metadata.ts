@@ -1,10 +1,5 @@
-import { ColumnType } from '../types/data-types'
+import { ColumnOptions } from 'src/decorators/column/options/column-options'
 
-export class ColumnMetadata {
-  type: ColumnType
+export class ColumnMetadata extends ColumnOptions {
   name: string
-  nullable?: boolean
-  unique?: boolean
-  primary?: boolean
-  orderBy?: boolean
 }

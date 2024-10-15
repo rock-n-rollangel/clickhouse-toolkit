@@ -2,17 +2,17 @@ import { SchemaMetadata } from '../../../src/metadata/schema-metadata'
 import { Connection } from '../../../src/connection/connection'
 import { ColumnMetadataArgs } from '../../../src/metadata/column-metadata-args'
 
-describe('EntityMetadata', () => {
+describe('SchemaMetadata', () => {
   let mockConnection: Connection
-  let entityMetadata: SchemaMetadata
+  let schemaMetadata: SchemaMetadata
 
   beforeEach(() => {
     mockConnection = {} as Connection
-    entityMetadata = new SchemaMetadata(mockConnection)
+    schemaMetadata = new SchemaMetadata(mockConnection)
   })
 
   it('should initialize with the provided connection', () => {
-    expect(entityMetadata.connection).toBe(mockConnection)
+    expect(schemaMetadata.connection).toBe(mockConnection)
   })
 
   it('should return column metadatas correctly from columnMetadataArgs', () => {
@@ -43,9 +43,9 @@ describe('EntityMetadata', () => {
       },
     ]
 
-    entityMetadata.columnMetadataArgs = mockColumnMetadataArgs
+    schemaMetadata.columnMetadataArgs = mockColumnMetadataArgs
 
-    const result = entityMetadata.getColumnMetadatas()
+    const result = schemaMetadata.getColumnMetadatas()
 
     expect(result).toEqual([
       {
@@ -68,9 +68,9 @@ describe('EntityMetadata', () => {
   })
 
   it('should handle empty columnMetadataArgs correctly', () => {
-    entityMetadata.columnMetadataArgs = []
+    schemaMetadata.columnMetadataArgs = []
 
-    const result = entityMetadata.getColumnMetadatas()
+    const result = schemaMetadata.getColumnMetadatas()
 
     expect(result).toEqual([]) // Expect an empty array when there are no columns
   })

@@ -42,7 +42,7 @@ describe('SelectQueryBuilder (integrational)', () => {
   beforeAll(async () => {
     connection = await Connection.initialize({
       ...ConnectionOptions,
-      entities: [SelectQueryBuilderTestSchema, SelectQueryBuilderTestJoinSchema],
+      schemas: [SelectQueryBuilderTestSchema, SelectQueryBuilderTestJoinSchema],
     })
 
     metadata = connection.getMetadata(SelectQueryBuilderTestSchema)
