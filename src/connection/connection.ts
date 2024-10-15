@@ -59,12 +59,12 @@ export class Connection {
 
     const metadataArgsStorage = getMetadataArgsStorage()
     for (const tableMetadata of metadataArgsStorage.tables) {
-      const entityMetadata = new SchemaMetadata(this)
-      entityMetadata.tableMetadataArgs = tableMetadata
-      entityMetadata.columnMetadataArgs = metadataArgsStorage.columns.filter(
+      const schemaMetadata = new SchemaMetadata(this)
+      schemaMetadata.tableMetadataArgs = tableMetadata
+      schemaMetadata.columnMetadataArgs = metadataArgsStorage.columns.filter(
         (column) => column.target === tableMetadata.target,
       )
-      this.schemaMetadatas.push(entityMetadata)
+      this.schemaMetadatas.push(schemaMetadata)
       this._queryRunner = this.queryRunner
     }
   }

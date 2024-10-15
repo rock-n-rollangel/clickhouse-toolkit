@@ -53,7 +53,7 @@ export interface ConnectionOptions {
   }
 
   /**
-   * Optional list of schemas (as functions or strings) to load upon connection.
+   * Optional list of schemas (as classes) to load upon connection.
    * This can be used to register schemas or metadata relevant to the connection.
    */
   // eslint-disable-next-line @typescript-eslint/ban-types
