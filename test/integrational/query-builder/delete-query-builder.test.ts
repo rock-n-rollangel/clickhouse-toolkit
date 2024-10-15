@@ -36,7 +36,7 @@ describe('DeleteQueryBuilder (intergrational)', () => {
   beforeAll(async () => {
     connection = await Connection.initialize({
       ...ConnectionOptions,
-      entities: [DeleteQueryBuilderTestSchema],
+      schemas: [DeleteQueryBuilderTestSchema],
     })
 
     metadata = connection.getMetadata(TestSchema)

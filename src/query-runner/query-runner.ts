@@ -97,11 +97,23 @@ export class QueryRunner {
   }
 
   protected createPrimaryKeySql(columns: ColumnMetadata[]): string {
-    return `PRIMARY KEY (${columns.map((column) => this.connection.escape(column.name)).join(', ')}) `
+    return `PRIMARY KEY (${columns
+      .map((column) =>
+        column.function
+          ? `${column.function}(${this.connection.escape(column.name)})`
+          : this.connection.escape(column.name),
+      )
+      .join(', ')}) `
   }
 
   protected createOrderBySql(columns: ColumnMetadata[]): string {
-    return `ORDER BY (${columns.map((column) => this.connection.escape(column.name)).join(', ')})`
+    return `ORDER BY (${columns
+      .map((column) =>
+        column.function
+          ? `${column.function}(${this.connection.escape(column.name)})`
+          : this.connection.escape(column.name),
+      )
+      .join(', ')})`
   }
 
   protected log(sql: string, params?: Params): void {

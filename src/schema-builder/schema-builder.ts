@@ -5,31 +5,41 @@ import { TableSchema } from '../types/table-schema'
 import { Table } from './table'
 import { SchemaMetadata } from '../metadata/schema-metadata'
 
-/*
-  1. Remove materialized views
-  2. Rename old tables with <prefix>_<name>
-  3. Create tables with changed metadata
-  4. Clone data from old tables into new tables
-  5. Drop old tables
-  6. Restore materialized views
-*/
+/**
+ * SchemaBuilder class for synchronizing database schemas.
+ * It handles creating, updating, and dropping tables and materialized views.
+ */
 export class SchemaBuilder {
   readonly '@instanceof' = Symbol.for('SchemaBuilder')
+
+  /** Temporary prefix used for renaming tables during updates. */
   static readonly tempPrefix = '_temp_'
+
+  /** The QueryRunner instance for executing queries. */
   private queryRunner: QueryRunner
+
+  /** Database table metadata. */
   public databaseTableMetadatas: {
     name: string
     columns: ColumnSchema[]
   }[] = []
 
+  /**
+   * Initializes a new instance of the SchemaBuilder class.
+   * @param connection - The connection instance to the database.
+   */
   constructor(private connection: Connection) {
     this.queryRunner = this.connection.queryRunner
   }
 
+  /**
+   * Synchronizes the database schema by dropping old materialized views,
+   * creating new tables, updating changed tables, and restoring materialized views.
+   */
   public async synchronize(): Promise<void> {
     await this.preload()
 
-    // first need to drop views
+    // Drop materialized views
     const materializedMetadatas = this.connection.schemaMetadatas.filter((metadata) => {
       return metadata.tableMetadataArgs.materialized
     })
@@ -37,7 +47,7 @@ export class SchemaBuilder {
       await this.dropMaterializedView(metadata)
     }
 
-    // create tables that is not exists yet
+    // Create new tables if they do not exist yet
     const changedTables = await this.findChangedTables()
     const newTableMetadatas = this.connection.schemaMetadatas.filter((metadata) => {
       return (
@@ -49,18 +59,21 @@ export class SchemaBuilder {
       await this.createTable(metadata)
     }
 
-    // find only changed schemas. we don't need to work all of tables, right?
+    // Update changed tables
     for (const metadata of changedTables) {
-      // update table
       await this.updateTable(metadata)
     }
 
-    // now we need to restore views
+    // Restore materialized views
     for (const metadata of materializedMetadatas) {
       await this.createMaterializedView(metadata)
     }
   }
 
+  /**
+   * Retrieves a list of tables in the current database.
+   * @returns A promise that resolves to an array of TableSchema objects.
+   */
   public async getTables(): Promise<TableSchema[]> {
     return await this.connection
       .createQueryBuilder()
@@ -70,6 +83,10 @@ export class SchemaBuilder {
       .execute<TableSchema>()
   }
 
+  /**
+   * Retrieves metadata about columns in the current database.
+   * @returns A promise that resolves to an array of ColumnSchema objects.
+   */
   public async getColumns(): Promise<ColumnSchema[]> {
     return await this.connection
       .createQueryBuilder()
@@ -86,6 +103,9 @@ export class SchemaBuilder {
       .execute<ColumnSchema>()
   }
 
+  /**
+   * Preloads table and column metadata into memory.
+   */
   public async preload(): Promise<void> {
     const tables = await this.getTables()
     const columns = await this.getColumns()
@@ -98,14 +118,26 @@ export class SchemaBuilder {
     })
   }
 
+  /**
+   * Drops a materialized view from the database.
+   * @param metadata - The schema metadata for the materialized view to drop.
+   */
   public async dropMaterializedView(metadata: SchemaMetadata): Promise<void> {
     await this.queryRunner.dropTable(metadata, true)
   }
 
+  /**
+   * Creates a materialized view in the database based on schema metadata.
+   * @param metadata - The schema metadata for the materialized view to create.
+   */
   public async createMaterializedView(metadata: SchemaMetadata): Promise<void> {
     await this.queryRunner.createTable(Table.create(metadata))
   }
 
+  /**
+   * Finds tables that have changed schemas.
+   * @returns A promise that resolves to an array of changed SchemaMetadata objects.
+   */
   public async findChangedTables(): Promise<SchemaMetadata[]> {
     const metadatas: SchemaMetadata[] = []
 
@@ -133,10 +165,19 @@ export class SchemaBuilder {
     return metadatas
   }
 
+  /**
+   * Creates a new table in the database based on schema metadata.
+   * @param metadata - The schema metadata for the table to create.
+   */
   public async createTable(metadata: SchemaMetadata): Promise<void> {
     await this.queryRunner.createTable(Table.create(metadata), true)
   }
 
+  /**
+   * Updates an existing table by backing it up, creating a new version,
+   * restoring data from the backup, and dropping the old table.
+   * @param metadata - The schema metadata for the table to update.
+   */
   public async updateTable(metadata: SchemaMetadata): Promise<void> {
     await this.backupTable(metadata)
     await this.createTable(metadata)
@@ -144,6 +185,10 @@ export class SchemaBuilder {
     await this.queryRunner.dropTable(SchemaBuilder.tempPrefix + metadata.tableMetadataArgs.name, true)
   }
 
+  /**
+   * Backs up an existing table by renaming it with a temporary prefix.
+   * @param metadata - The schema metadata for the table to back up.
+   */
   public async backupTable(metadata: SchemaMetadata): Promise<void> {
     await this.queryRunner.dropTable(SchemaBuilder.tempPrefix + metadata.tableMetadataArgs.name, true)
     await this.queryRunner.renameTable(
@@ -152,6 +197,10 @@ export class SchemaBuilder {
     )
   }
 
+  /**
+   * Restores data from a backup table to the original table.
+   * @param metadata - The schema metadata for the table to restore.
+   */
   public async restoreBackup(metadata: SchemaMetadata): Promise<void> {
     await this.connection
       .createQueryBuilder()

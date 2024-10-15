@@ -40,7 +40,7 @@ describe('UpdateQueryBuilder (integrational)', () => {
     connection = await Connection.initialize({
       ...ConnectionOptions,
       logging: true,
-      entities: [UpdateQueryBuilderTestSchema],
+      schemas: [UpdateQueryBuilderTestSchema],
     })
 
     metadata = connection.getMetadata(UpdateQueryBuilderTestSchema)

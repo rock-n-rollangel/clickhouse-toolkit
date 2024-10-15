@@ -31,7 +31,7 @@ describe('QueryRunner (integrational)', () => {
   beforeAll(async () => {
     connection = await Connection.initialize({
       ...ConnectionOptions,
-      entities: [QueryRunnerTestSchema, QueryRunnerTestViewSchema, QueryRunnerTestViewStorageSchema],
+      schemas: [QueryRunnerTestSchema, QueryRunnerTestViewSchema, QueryRunnerTestViewStorageSchema],
     })
   })
 

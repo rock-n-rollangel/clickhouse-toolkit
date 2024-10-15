@@ -11,6 +11,9 @@ import { Table } from '../../../src/schema-builder/table'
 class SchemaBuilderTestSchema {
   @Column({ type: 'String' })
   someColumn: string
+
+  @Column({ type: 'DateTime', orderBy: true, primary: true, function: 'toYYYYMM' })
+  createdAt: string
 }
 
 @Schema({ engine: 'MergeTree' })
@@ -33,7 +36,7 @@ describe('SchemaBuilder (integrational)', () => {
   beforeAll(async () => {
     connection = await Connection.initialize({
       ...ConnectionOptions,
-      entities: [SchemaBuilderTestSchema, SchemaBuilderTestViewStorageSchema, SchemaBuilderTestViewSchema],
+      schemas: [SchemaBuilderTestSchema, SchemaBuilderTestViewStorageSchema, SchemaBuilderTestViewSchema],
     })
 
     schemaBuilder = connection.createSchemaBuilder()

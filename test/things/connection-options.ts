@@ -5,6 +5,7 @@ export const ConnectionOptions: Opts = {
   password: 'password',
   url: 'http://localhost:8123',
   database: 'test_db',
+  logging: true,
   settings: {
     mutations_sync: '2',
   },
