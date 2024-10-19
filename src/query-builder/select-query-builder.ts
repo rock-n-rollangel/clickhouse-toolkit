@@ -162,24 +162,20 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
 
   /**
    * Converts the query builder to an SQL string.
-   * @returns {string} The generated SQL query string.
+   * @returns {[string, ObjectLiteral]} The generated SQL query string.
    */
-  public toSql(): string {
-    let sql =
+  public toSql(): [string, ObjectLiteral] {
+    return this.preprocess(
       this.parseSelect() +
-      this.parseTable() +
-      this.parseJoins() +
-      this.parseWhere() +
-      this.parseGroupBy() +
-      this.parseOrderBy() +
-      this.parseLimit() +
-      this.parseOffset()
-
-    if (this.expressionMap.parameters.length > 0) {
-      sql = this.processParams(sql, this.expressionMap.parameters)
-    }
-
-    return sql
+        this.parseTable() +
+        this.parseJoins() +
+        this.parseWhere() +
+        this.parseGroupBy() +
+        this.parseOrderBy() +
+        this.parseLimit() +
+        this.parseOffset(),
+      this.getParameters(),
+    )
   }
 
   /**
@@ -343,6 +339,6 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @returns {Promise<T[]>} A promise that resolves to an array of results of type T.
    */
   public async execute<T>(): Promise<T[]> {
-    return await this.queryRunner.query(this.toSql(), this.getProcessedParameters())
+    return await this.queryRunner.query(...this.toSql())
   }
 }
