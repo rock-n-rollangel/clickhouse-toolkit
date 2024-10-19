@@ -34,7 +34,9 @@ export class InsertQueryBuilder extends QueryBuilder {
    */
   public values(value: ((qb: this) => this) | ObjectLiteral | ObjectLiteral[]): InsertQueryBuilder {
     if (typeof value === 'function') {
-      this.expressionMap.insertValues = value(this.createQueryBuilder()).toSql()
+      const [sql, processedParameters] = value(this.createQueryBuilder()).toSql()
+      this.expressionMap.insertValues = sql
+      this.setProcessedParameters(processedParameters)
     } else if (Array.isArray(value)) {
       this.expressionMap.insertValues = value
     } else {

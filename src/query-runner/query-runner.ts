@@ -6,6 +6,7 @@ import { Table } from '../schema-builder/table'
 import { ColumnMetadata } from '../metadata/column-metadata'
 import { Engine } from '../types/engine'
 import { QueryBuilderCallback } from '../types/query-builder-callback'
+import { ObjectLiteral } from 'src/types/object-literal'
 
 export class QueryRunner {
   readonly '@instanceof' = Symbol.for('QueryRunner')
@@ -65,7 +66,7 @@ export class QueryRunner {
     if ('to' in table) {
       sql =
         `CREATE MATERIALIZED VIEW ${ifNotExists ? 'IF NOT EXISTS' : ''} ${table.name} TO ${table.to} AS ` +
-        this.createViewQuerySql(table.query)
+        this.createViewQuerySql(table.query)[0]
     } else {
       sql =
         `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS' : ''} ${this.connection.escape(table.name)} ` +
@@ -78,8 +79,8 @@ export class QueryRunner {
     return sql
   }
 
-  protected createViewQuerySql(query: QueryBuilderCallback | string): string {
-    if (typeof query === 'string') return query
+  protected createViewQuerySql(query: QueryBuilderCallback | string): [string, ObjectLiteral] {
+    if (typeof query === 'string') return [query, {}]
     return query(this.connection.createQueryBuilder()).toSql()
   }
 

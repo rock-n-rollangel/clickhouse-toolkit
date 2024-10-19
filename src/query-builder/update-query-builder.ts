@@ -62,22 +62,16 @@ export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionB
 
   /**
    * Converts the query builder state into an SQL UPDATE string.
-   * @returns {string} The generated SQL string.
+   * @returns {[string, ObjectLiteral]} The generated SQL string.
    */
-  public toSql(): string {
-    let sql = this.parseUpdate() + this.parseValues() + this.parseWhere()
-
+  public toSql(): [string, ObjectLiteral] {
     // We need to set updateValues to parameters first
     const dumpParams = this.expressionMap.parameters
     this.expressionMap.parameters = []
     this.setParameters(this.expressionMap.updateValue)
     for (const param of dumpParams) this.setParameters(param)
 
-    if (this.expressionMap.parameters.length > 0) {
-      sql = this.processParams(sql, this.expressionMap.parameters)
-    }
-
-    return sql
+    return this.preprocess(this.parseUpdate() + this.parseValues() + this.parseWhere(), this.getParameters())
   }
 
   /**
@@ -85,7 +79,7 @@ export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @returns {Promise<any>} A promise that resolves to the result of the execution.
    */
   public async execute(): Promise<any> {
-    return await this.queryRunner.command(this.toSql(), this.getProcessedParameters())
+    return await this.queryRunner.command(...this.toSql())
   }
 
   /**

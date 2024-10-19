@@ -69,13 +69,13 @@ export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionB
 
   /**
    * Converts the delete query builder into a SQL DELETE statement.
-   * @returns The SQL DELETE statement as a string.
+   * @returns {[string, ObjectLiteral]} The SQL DELETE statement as a string.
    */
-  public toSql(): string {
-    let sql = this.parseDelete() + this.parseTable() + this.parseWhere() + this.parseLimit() + this.parseOffset()
-    if (this.expressionMap.whereClauses.length > 0) sql = this.processParams(sql, this.getParameters())
-
-    return sql
+  public toSql(): [string, ObjectLiteral] {
+    return this.preprocess(
+      this.parseDelete() + this.parseTable() + this.parseWhere() + this.parseLimit() + this.parseOffset(),
+      this.getParameters(),
+    )
   }
 
   /**
@@ -83,7 +83,7 @@ export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @returns A promise that resolves when the command has been executed.
    */
   public async execute(): Promise<void> {
-    await this.queryRunner.command(this.toSql(), this.getProcessedParameters())
+    await this.queryRunner.command(...this.toSql())
   }
 
   /**

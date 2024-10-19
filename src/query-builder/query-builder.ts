@@ -69,7 +69,7 @@ export abstract class QueryBuilder {
    */
   public abstract execute(): Promise<any>
 
-  public toSql?(...args: any[]): string
+  public toSql?(...args: any[]): [string, ObjectLiteral]
 
   /**
    * Specifies the fields to select in the query.
@@ -170,11 +170,11 @@ export abstract class QueryBuilder {
    * @throws NotAllParametersWasPassedError if the number of parameters does not match the number of placeholders.
    * @throws WrongParameterColumnNameError if a parameter name does not match any column name.
    */
-  protected processParams(sql: string, params: Params[]): string {
+  protected preprocess(sql: string, params: Params[]): [string, ObjectLiteral] {
     const pattern = /(:[a-z0-9_]+)/gi
     const matches = sql.match(pattern)?.map((match) => match.replace(/[^a-z0-9_]/gi, ''))
 
-    if (!matches) return sql
+    if (!matches) return [sql, {}]
 
     if (!this.expressionMap.metadata)
       this.expressionMap.metadata = this.connection.getMetadata(this.expressionMap.table)
@@ -184,7 +184,7 @@ export abstract class QueryBuilder {
 
     if (params.length !== matches.length) throw new NotAllParametersWasPassedError()
 
-    const newParams: Params = {}
+    const processedParams: Params = {}
     let wrappedSql = sql
     matches.forEach((paramName, paramIndex) => {
       const binding = params[paramIndex]
@@ -193,15 +193,13 @@ export abstract class QueryBuilder {
 
       // this needed to prevent clearing params values by child query builders
       const paramId = `$${paramIndex + 1}`
-      newParams[paramId] = binding[paramName]
+      processedParams[paramId] = binding[paramName]
       const columnType = columnsMap.get(paramName).options.type
       const isArray = Array.isArray(binding[paramName]) && !/Array.+/.test(columnType)
       wrappedSql = wrappedSql.replace(`:${paramName}`, `{${paramId}: ${isArray ? `Array(${columnType})` : columnType}}`)
     })
 
-    this.setProcessedParameters(newParams)
-
-    return wrappedSql
+    return [wrappedSql, processedParams]
   }
 
   /**
@@ -363,7 +361,13 @@ export abstract class QueryBuilder {
     const type = whereClause.type === 'simple' ? 'WHERE' : whereClause.type.toUpperCase()
     // This makes params order to be correct
     if (whereClause.params) {
-      this.setParameters(whereClause.params)
+      this.setParameters(
+        Object.fromEntries(
+          Object.entries(whereClause.params).filter(
+            ([key, value]) => !this.expressionMap?.parameters.find((param) => param[key] === value),
+          ),
+        ),
+      )
     }
 
     let condition: string

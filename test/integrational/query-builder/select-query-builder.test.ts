@@ -148,4 +148,14 @@ describe('SelectQueryBuilder (integrational)', () => {
       expect(item.id).toEqual(item.joinId)
     }
   })
+
+  it('should give sql X times', () => {
+    const qb = queryBuilder
+      .select(['id'])
+      .from(tableName, 't1')
+      .where('id = :id', { id: '123' })
+      .innerJoin(joinMetadata.tableMetadataArgs.name, 't2', 't2.joinId = t1.id')
+
+    for (let x = 3; x > 0; x--) qb.toSql()
+  })
 })
