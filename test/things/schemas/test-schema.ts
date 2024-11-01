@@ -14,4 +14,7 @@ export class TestSchema {
 
   @Column({ type: 'Array(Int8)' })
   numericArray: number[]
+
+  @Column({ type: 'Tuple(String, String)' })
+  s: any
 }

@@ -35,9 +35,9 @@ type InheritingTypes = `Nullable(${StandaloneTypes})` | `LowCardinality(${Standa
 
 type MapType = `Map(${StandaloneTypes}, ${StandaloneTypes | InheritingTypes})`
 
-type TupleType = `Tuple(${StandaloneTypes | InheritingTypes})`
+type TupleType = `Tuple(${string})`
 
-type ArrayType = `Array(${StandaloneTypes | InheritingTypes})`
+type ArrayType = `Array(${StandaloneTypes | InheritingTypes | TupleType | NestedType})`
 
 type NestedType = `Nested(${string} ${StandaloneTypes | InheritingTypes})`
 
