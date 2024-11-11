@@ -185,7 +185,7 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
   public addSelect(field: string): SelectQueryBuilder
-  public addSelect(...fields: string[]): SelectQueryBuilder
+  public addSelect(fields: string[]): SelectQueryBuilder
   public addSelect(callback: QueryBuilderCallback, columnAlias: string): SelectQueryBuilder
   public addSelect(field: string | string[] | QueryBuilderCallback, columnAlias?: string): SelectQueryBuilder {
     if (typeof field === 'function') {
@@ -256,11 +256,11 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
   public orderBy(field: string): SelectQueryBuilder
-  public orderBy(...fields: string[]): SelectQueryBuilder
+  public orderBy(fields: string[]): SelectQueryBuilder
   public orderBy(field: string, direction: string): SelectQueryBuilder
   public orderBy(field: string[], direction: string): SelectQueryBuilder
   public orderBy(field: string | string[] | ObjectLiteral, direction?: string): SelectQueryBuilder {
-    if (direction) this.expressionMap.orderByDirection = this.connection.escape(direction)
+    if (direction) this.expressionMap.orderByDirection = direction
     this.expressionMap.orderBys = Array.isArray(field) ? field : [field]
     return this
   }

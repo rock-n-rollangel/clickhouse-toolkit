@@ -171,10 +171,19 @@ export abstract class QueryBuilder {
    * @throws WrongParameterColumnNameError if a parameter name does not match any column name.
    */
   protected preprocess(sql: string, params: Params[]): [string, ObjectLiteral] {
-    const pattern = /(:[a-z0-9_]+)/gi
-    const matches = sql.match(pattern)?.map((match) => match.replace(/[^a-z0-9_]/gi, ''))
+    // Define a regular expression to match quoted strings (single, double, or backticks)
+    // or parameters outside of quotes that start with ":" and contain alphanumeric or underscore characters.
+    const pattern = /'[^']*'|"[^"]*"|`[^`]*`|(:[a-z0-9_]+)/gi
 
-    if (!matches) return [sql, {}]
+    // Use matchAll to find all occurrences of quoted strings and parameters in the SQL string.
+    const matches = [...sql.matchAll(pattern)]
+      // Filter the results to keep only matches with a parameter outside of quotes,
+      // as quoted strings will have an undefined capture group at index 1.
+      .filter((match) => match[1])
+      // Extract the parameter name by removing any non-alphanumeric or underscore characters.
+      .map((match) => match[1].replace(/[^a-z0-9_]/gi, ''))
+
+    if (matches.length === 0) return [sql, {}]
 
     if (!this.expressionMap.metadata)
       this.expressionMap.metadata = this.connection.getMetadata(this.expressionMap.table)
