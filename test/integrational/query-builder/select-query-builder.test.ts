@@ -158,4 +158,45 @@ describe('SelectQueryBuilder (integrational)', () => {
 
     for (let x = 3; x > 0; x--) qb.toSql()
   })
+
+  it('should work with values containing ":"', async () => {
+    const result = await queryBuilder
+      .select()
+      .from(tableName, 't1')
+      .where(`t1.dateOfBirth = '1970-01-02 00:00:45'`)
+      .execute<{ name: string }>()
+
+    expect(result.pop()?.name).toContain('name_1')
+  })
+
+  it('should work with multiple parameters', async () => {
+    const result = await queryBuilder
+      .select()
+      .from(tableName, 't1')
+      .where(`t1.dateOfBirth = :dateOfBirth`, { dateOfBirth: '1970-01-02 00:00:45' })
+      .andWhere(`t1.name = :name`, { name: 'name_1' })
+      .execute<{ name: string }>()
+
+    expect(result.pop()?.name).toContain('name_1')
+  })
+
+  it('should order descending correctly', async () => {
+    const result = await queryBuilder
+      .select()
+      .from(tableName, 't1')
+      .orderBy('dateOfBirth', 'desc')
+      .execute<{ name: string }>()
+
+    expect(result[0].name).toBe('name_1')
+  })
+
+  it('should order ascending correctly', async () => {
+    const result = await queryBuilder
+      .select()
+      .from(tableName, 't1')
+      .orderBy('dateOfBirth', 'asc')
+      .execute<{ name: string }>()
+
+    expect(result[0].name === 'name_1').toBeFalsy()
+  })
 })
