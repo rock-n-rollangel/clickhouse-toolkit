@@ -7,6 +7,7 @@ import { randomInt, randomUUID } from 'crypto'
 import { Column } from '../../../src/decorators/column/column'
 import { Schema } from '../../../src/decorators/schema/schema'
 import { SelectStatementError } from '../../../src/errors/select-empty'
+import { exec } from 'child_process'
 
 /**
  * Schema for this test file
@@ -198,5 +199,10 @@ describe('SelectQueryBuilder (integrational)', () => {
       .execute<{ name: string }>()
 
     expect(result[0].name === 'name_1').toBeFalsy()
+  })
+
+  it('should offset properly', async () => {
+    const result = await queryBuilder.select().from(tableName, 't1').offset(1).execute<{ name: string }>()
+    expect(result.length).toBe(50)
   })
 })

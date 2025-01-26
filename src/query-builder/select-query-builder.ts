@@ -81,7 +81,7 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    */
   protected parseOffset(): string {
     if (!this.expressionMap.offset) return ''
-    return `OFFSET ${this.expressionMap.offset}`
+    return ` OFFSET ${this.expressionMap.offset}`
   }
 
   /**
