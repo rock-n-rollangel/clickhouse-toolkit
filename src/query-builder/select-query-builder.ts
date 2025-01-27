@@ -309,7 +309,7 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @returns {this} The current instance for method chaining.
    */
   public leftJoin(table: string, alias: string, condition: string, params?: Params): this {
-    this.join('INNER', alias, table, condition, params)
+    this.join('LEFT', alias, table, condition, params)
     return this
   }
 

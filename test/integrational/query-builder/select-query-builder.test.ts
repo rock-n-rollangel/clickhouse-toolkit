@@ -7,7 +7,6 @@ import { randomInt, randomUUID } from 'crypto'
 import { Column } from '../../../src/decorators/column/column'
 import { Schema } from '../../../src/decorators/schema/schema'
 import { SelectStatementError } from '../../../src/errors/select-empty'
-import { exec } from 'child_process'
 
 /**
  * Schema for this test file
@@ -78,7 +77,7 @@ describe('SelectQueryBuilder (integrational)', () => {
     }
     await connection.insert(inserts, tableName)
     await connection.insert(
-      inserts.map((insert) => ({ joinId: insert.id })),
+      inserts.filter((v, i) => i % 2 === 0).map((insert) => ({ joinId: insert.id })),
       joinMetadata.tableMetadataArgs.name,
     )
   })
@@ -204,5 +203,23 @@ describe('SelectQueryBuilder (integrational)', () => {
   it('should offset properly', async () => {
     const result = await queryBuilder.select().from(tableName, 't1').offset(1).execute<{ name: string }>()
     expect(result.length).toBe(50)
+  })
+
+  it('should left join column and select all records', async () => {
+    const result = await queryBuilder
+      .select(['t1.id as id', 't2.joinId as ji'])
+      .from(tableName, 't1')
+      .leftJoin(joinMetadata.tableMetadataArgs.name, 't2', 't1.id = t2.joinId')
+      .execute<{ id: string; ji: string }>()
+
+    const [count] = await queryBuilder.select('count(id) as count').from(tableName, 't1').execute<{ count: number }>()
+
+    expect(+count.count).toBe(result.length)
+
+    result.forEach((v, i) => {
+      // Because this field can not be null,
+      // and default values for UUID is: 00000000-0000-0000-0000-000000000000
+      if (i % 2 !== 0) expect(/[0-]+/.test(v.ji)).toBeTruthy()
+    })
   })
 })
