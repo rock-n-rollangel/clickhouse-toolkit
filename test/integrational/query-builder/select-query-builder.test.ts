@@ -38,6 +38,7 @@ describe('SelectQueryBuilder (integrational)', () => {
   let metadata: SchemaMetadata
   let joinMetadata: SchemaMetadata
   let tableName: string
+  let inserts: Array<any>
 
   beforeAll(async () => {
     connection = await Connection.initialize({
@@ -58,7 +59,7 @@ describe('SelectQueryBuilder (integrational)', () => {
     await connection.queryRunner.dropTable(joinMetadata, true)
     await connection.queryRunner.createTable(Table.create(joinMetadata))
 
-    const inserts = [
+    inserts = [
       {
         id: randomUUID(),
         name: 'name_1',
@@ -212,14 +213,22 @@ describe('SelectQueryBuilder (integrational)', () => {
       .leftJoin(joinMetadata.tableMetadataArgs.name, 't2', 't1.id = t2.joinId')
       .execute<{ id: string; ji: string }>()
 
-    const [count] = await queryBuilder.select('count(id) as count').from(tableName, 't1').execute<{ count: number }>()
-
-    expect(+count.count).toBe(result.length)
+    expect(result.length).toBe(inserts.length)
 
     result.forEach((v, i) => {
       // Because this field can not be null,
       // and default values for UUID is: 00000000-0000-0000-0000-000000000000
       if (i % 2 !== 0) expect(/[0-]+/.test(v.ji)).toBeTruthy()
     })
+  })
+
+  it('should add subqueries', async () => {
+    const [result] = await queryBuilder
+      .select((qb) => qb.select('COUNT(id)').from(tableName), 'count_id')
+      .from(tableName, 't1')
+      .limit(1)
+      .execute<{ count_id: number }>()
+
+    expect(+result.count_id).toBe(inserts.length)
   })
 })
