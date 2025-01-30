@@ -150,8 +150,9 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
 
     if (typeof field === 'function') {
       const qb = field(this.createQueryBuilder()) as SelectQueryBuilder
-      this.expressionMap.parameters.push(qb.getParameters())
-      this.expressionMap.selects = [`(${qb.toSql()}) AS ${columnAlias}`]
+      const [sql, params] = qb.toSql()
+      this.expressionMap.parameters.push(params)
+      this.expressionMap.selects = [`(${sql}) AS ${columnAlias}`]
 
       return this as any as SelectQueryBuilder
     }
@@ -190,8 +191,9 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
   public addSelect(field: string | string[] | QueryBuilderCallback, columnAlias?: string): SelectQueryBuilder {
     if (typeof field === 'function') {
       const qb = field(this.createQueryBuilder()) as SelectQueryBuilder
-      this.expressionMap.parameters.push(qb.getParameters())
-      this.addSelect(`(${qb.toSql()}) AS ${this.connection.escape(columnAlias)}`)
+      const [sql, params] = qb.toSql()
+      this.expressionMap.parameters.push(params)
+      this.addSelect(`(${sql}) AS ${this.connection.escape(columnAlias)}`)
 
       return this
     }
