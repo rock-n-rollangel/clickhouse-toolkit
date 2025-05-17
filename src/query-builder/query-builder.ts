@@ -5,7 +5,6 @@ import { QueryRunner } from '../query-runner/query-runner'
 import { QueryExpressionMap } from './query-expression-map'
 import { SelectQueryBuilder } from './select-query-builder'
 import { Params } from '../types/params'
-import { QueryBuilderCallback } from '../types/query-builder-callback'
 import { InsertQueryBuilder } from './insert-query-builder'
 import { UpdateQueryBuilder } from './update-query-builder'
 import { ObjectLiteral } from '../types/object-literal'
@@ -14,11 +13,12 @@ import { DeleteQueryBuilder } from './delete-query-builder'
 import { TableSchema } from '../types/table-schema'
 import { WhereClauseType } from '../types/where-clause-type'
 import { WhereClause } from '../types/where-clause'
+import { CallbackFunction } from 'src/types/callback-function'
 
 /**
  * Abstract class representing a query builder for constructing and executing SQL queries.
  */
-export abstract class QueryBuilder {
+export abstract class QueryBuilder<T extends ObjectLiteral> {
   readonly '@instanceof' = Symbol.for('QueryBuilder')
 
   protected connection: Connection
@@ -27,10 +27,10 @@ export abstract class QueryBuilder {
   protected queryRunner?: QueryRunner
 
   // properties needed to make final query
-  protected expressionMap?: QueryExpressionMap
+  protected expressionMap?: QueryExpressionMap<T>
 
   // need to send parameters to make globals
-  protected parentQueryBuilder?: QueryBuilder
+  protected parentQueryBuilder?: QueryBuilder<T>
 
   private static queryBuilderRegistry: Record<string, any> = {}
 
@@ -39,9 +39,9 @@ export abstract class QueryBuilder {
    * @param queryBuilder - An existing QueryBuilder instance or a Connection object.
    * @param queryRunner - An optional QueryRunner instance.
    */
-  constructor(queryBuilder: QueryBuilder)
+  constructor(queryBuilder: QueryBuilder<T>)
   constructor(connection: Connection, queryRunner?: QueryRunner)
-  constructor(connectionOrQueryBuilder: Connection | QueryBuilder, queryRunner?: QueryRunner) {
+  constructor(connectionOrQueryBuilder: Connection | QueryBuilder<T>, queryRunner?: QueryRunner) {
     if (InstanceChecker.isConnection(connectionOrQueryBuilder)) {
       this.connection = connectionOrQueryBuilder
       this.queryRunner = queryRunner
@@ -77,24 +77,24 @@ export abstract class QueryBuilder {
    * @param columnAlias - An optional alias for the selected field.
    * @returns An instance of SelectQueryBuilder.
    */
-  public select(): SelectQueryBuilder
-  public select(fields: string[]): SelectQueryBuilder
-  public select(field: string): SelectQueryBuilder
-  public select(qb: (qb: this) => this, columnAlias: string): SelectQueryBuilder
-  public select(field?: string | string[] | ((qb: this) => this), columnAlias?: string): SelectQueryBuilder {
-    this.expressionMap.processedParameters = {}
+  public select(): SelectQueryBuilder<T>
+  public select(fields: string[]): SelectQueryBuilder<T>
+  public select(field: string): SelectQueryBuilder<T>
+  public select(qb: (qb: this) => this, columnAlias: string): SelectQueryBuilder<T>
+  public select(field?: string | string[] | ((qb: this) => this), columnAlias?: string): SelectQueryBuilder<T> {
+    this.expressionMap.processedParameters = {} as Params<T>
     if (!field && !columnAlias) {
       this.expressionMap.parameters = []
       this.expressionMap.selects = ['*']
     } else if (typeof field === 'function') {
       const qb = field(this.createQueryBuilder())
-      this.expressionMap.parameters.push(qb.getParameters())
+      this.expressionMap.parameters.push(qb.getParameters() as Params<T>)
       this.expressionMap.selects = [`(${qb.toSql()}) AS ${columnAlias}`]
     } else {
       this.expressionMap.selects = Array.isArray(field) ? field : [field]
     }
 
-    if (InstanceChecker.isSelectQueryBuilder(this)) return this
+    if (InstanceChecker.isSelectQueryBuilder(this)) return this as any as SelectQueryBuilder<T>
 
     return QueryBuilder.queryBuilderRegistry['SelectQueryBuilder'](this)
   }
@@ -103,11 +103,11 @@ export abstract class QueryBuilder {
    * Prepares an insert operation for the database.
    * @returns {InsertQueryBuilder}
    */
-  public insert(): InsertQueryBuilder {
+  public insert(): InsertQueryBuilder<T> {
     this.expressionMap.table = ''
     this.expressionMap.insertValues = []
     this.expressionMap.insertColumns = []
-    this.expressionMap.processedParameters = {}
+    this.expressionMap.processedParameters = {} as Params<T>
     return QueryBuilder.queryBuilderRegistry['InsertQueryBuilder'](this)
   }
   /**
@@ -116,8 +116,8 @@ export abstract class QueryBuilder {
    * @param updateColumns - An optional array of columns to update.
    * @returns {UpdateQueryBuilder}
    */
-  public update(target: string | TableSchema, updateColumns?: string[]): UpdateQueryBuilder {
-    this.expressionMap.processedParameters = {}
+  public update(target: string | TableSchema, updateColumns?: string[]): UpdateQueryBuilder<T> {
+    this.expressionMap.processedParameters = {} as Params<T>
     this.expressionMap.table = typeof target === 'string' ? target : target.name
     if (updateColumns) {
       this.expressionMap.updateColumns = updateColumns
@@ -133,11 +133,11 @@ export abstract class QueryBuilder {
    * @param target - The target table name or schema.
    * @returns {DeleteQueryBuilder}.
    */
-  public delete(target: string | TableSchema): DeleteQueryBuilder {
+  public delete(target: string | TableSchema): DeleteQueryBuilder<T> {
     this.expressionMap.table = typeof target === 'string' ? target : target.name
-    this.expressionMap.processedParameters = {}
+    this.expressionMap.processedParameters = {} as Params<T>
 
-    if (InstanceChecker.isDeleteQueryBuilder(this)) return this
+    if (InstanceChecker.isDeleteQueryBuilder(this)) return this as any as DeleteQueryBuilder<T>
 
     return QueryBuilder.queryBuilderRegistry['DeleteQueryBuilder'](this)
   }
@@ -166,11 +166,11 @@ export abstract class QueryBuilder {
    * Processes SQL parameters and binds them to the query.
    * @param sql - The SQL query string.
    * @param params - The parameters to bind to the SQL query.
-   * @returns {string} The processed SQL string with parameters.
+   * @returns {string, Params<T>} The processed SQL string with parameters.
    * @throws NotAllParametersWasPassedError if the number of parameters does not match the number of placeholders.
    * @throws WrongParameterColumnNameError if a parameter name does not match any column name.
    */
-  protected preprocess(sql: string, params: Params[]): [string, ObjectLiteral] {
+  protected preprocess(sql: string, params: Params<T>[]): [string, Params<T>] {
     // Define a regular expression to match quoted strings (single, double, or backticks)
     // or parameters outside of quotes that start with ":" and contain alphanumeric or underscore characters.
     const pattern = /'[^']*'|"[^"]*"|`[^`]*`|(:[a-z0-9_]+)/gi
@@ -183,7 +183,7 @@ export abstract class QueryBuilder {
       // Extract the parameter name by removing any non-alphanumeric or underscore characters.
       .map((match) => match[1].replace(/[^a-z0-9_]/gi, ''))
 
-    if (matches.length === 0) return [sql, {}]
+    if (matches.length === 0) return [sql, {} as Params<T>]
 
     if (!this.expressionMap.metadata)
       this.expressionMap.metadata = this.connection.getMetadata(this.expressionMap.table)
@@ -193,7 +193,7 @@ export abstract class QueryBuilder {
 
     if (params.length !== matches.length) throw new NotAllParametersWasPassedError()
 
-    const processedParams: Params = {}
+    const processedParams = {}
     let wrappedSql = sql
     matches.forEach((paramName, paramIndex) => {
       const binding = params[paramIndex]
@@ -216,7 +216,7 @@ export abstract class QueryBuilder {
    *
    * @param params - An object containing parameters to be set. If no parameters are provided, the method does nothing.
    */
-  protected setParameters(params: Params): void {
+  protected setParameters(params: Params<T>): void {
     if (!params) return
     Object.entries(params).forEach(([key, value]) => this.expressionMap.parameters.push({ [key]: value }))
   }
@@ -226,7 +226,7 @@ export abstract class QueryBuilder {
    *
    * @returns An array of parameters set in the query builder.
    */
-  protected getParameters(): Params[] {
+  protected getParameters(): Params<T>[] {
     return this.expressionMap.parameters
   }
 
@@ -238,7 +238,7 @@ export abstract class QueryBuilder {
    *
    * @param params - An object containing new parameters to be processed and set.
    */
-  protected setProcessedParameters(params: Params) {
+  protected setProcessedParameters(params: Params<T>) {
     if (this.parentQueryBuilder) this.parentQueryBuilder.setProcessedParameters(params)
     this.expressionMap.processedParameters = { ...this.getProcessedParameters(), ...params }
   }
@@ -248,7 +248,7 @@ export abstract class QueryBuilder {
    *
    * @returns An object containing the processed parameters.
    */
-  protected getProcessedParameters(): Params {
+  protected getProcessedParameters(): Params<T> {
     return this.expressionMap.processedParameters
   }
 
@@ -306,15 +306,15 @@ export abstract class QueryBuilder {
    * @returns The current instance of the query builder.
    */
   protected addWhere(fieldValues: ObjectLiteral, type: WhereClauseType): this
-  protected addWhere(statement: string, type: WhereClauseType, params?: Params): this
-  protected addWhere(qb: QueryBuilderCallback, type: WhereClauseType, params?: Params): this
+  protected addWhere(statement: string, type: WhereClauseType, params?: Params<T>): this
+  protected addWhere(qb: CallbackFunction<this, T>, type: WhereClauseType, params?: Params<T>): this
   protected addWhere(
-    statement: string | QueryBuilderCallback | ObjectLiteral,
+    statement: string | CallbackFunction<this, T> | ObjectLiteral,
     type: WhereClauseType,
-    params?: Params,
+    params?: Params<T>,
   ): this {
     if (typeof statement === 'function') {
-      const qb = statement(this.createQueryBuilder()) as SelectQueryBuilder
+      const qb = statement(this.createQueryBuilder()) as SelectQueryBuilder<T>
       const whereClauses = qb.getWhere()
       this.expressionMap.whereClauses.push({
         type: type,
@@ -366,7 +366,7 @@ export abstract class QueryBuilder {
    * @param setType - Optional flag to determine if the type should be set (defaults to true).
    * @returns A string representing the condition for the WHERE clause.
    */
-  protected getWhereClauseCondition(whereClause: WhereClause, setType = true): string {
+  protected getWhereClauseCondition(whereClause: WhereClause<T>, setType = true): string {
     const type = whereClause.type === 'simple' ? 'WHERE' : whereClause.type.toUpperCase()
     // This makes params order to be correct
     if (whereClause.params) {
@@ -403,7 +403,7 @@ export abstract class QueryBuilder {
    *
    * @returns An array of WHERE clauses.
    */
-  protected getWhere(): WhereClause[] {
+  protected getWhere(): WhereClause<T>[] {
     return this.expressionMap.whereClauses
   }
 }

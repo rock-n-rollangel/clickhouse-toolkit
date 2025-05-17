@@ -3,14 +3,14 @@ import { TableNameError } from '../errors/table-name'
 import { UpdateValueNotSetError } from '../errors/update-value-not-set'
 import { QueryBuilder } from './query-builder'
 import { Params } from '../types/params'
-import { QueryBuilderCallback } from '../types/query-builder-callback'
 import { WhereExpressionBuilder } from './where-expression-builder'
+import { CallbackFunction } from 'src/types/callback-function'
 
 /**
  * UpdateQueryBuilder is responsible for building SQL UPDATE queries.
  * It extends the base QueryBuilder class and implements the WhereExpressionBuilder interface.
  */
-export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionBuilder {
+export class UpdateQueryBuilder<T extends ObjectLiteral> extends QueryBuilder<T> implements WhereExpressionBuilder<T> {
   readonly '@instanceof' = Symbol.for('UpdateQueryBuilder')
 
   /**
@@ -18,7 +18,7 @@ export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param value An object literal containing key-value pairs for the columns to update.
    * @returns {UpdateQueryBuilder} The current instance for method chaining.
    */
-  public set(value: ObjectLiteral): UpdateQueryBuilder {
+  public set(value: Partial<T>): UpdateQueryBuilder<T> {
     this.expressionMap.updateValue = value
     return this
   }
@@ -29,10 +29,11 @@ export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params Optional parameters for the condition.
    * @returns {this} The current instance for method chaining.
    */
-  public where(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public where(statement: string | CallbackFunction<this, T> | ObjectLiteral, params?: Params<T>): this {
     this.expressionMap.parameters = []
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'simple')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'simple', params)
+    else if (typeof statement === 'function')
+      return this.addWhere(statement as CallbackFunction<this, T>, 'simple', params)
     else return this.addWhere(statement as string, 'simple', params)
   }
 
@@ -42,9 +43,10 @@ export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params Optional parameters for the condition.
    * @returns {this} The current instance for method chaining.
    */
-  public andWhere(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public andWhere(statement: string | CallbackFunction<this, T> | ObjectLiteral, params?: Params<T>): this {
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'and')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'and', params)
+    else if (typeof statement === 'function')
+      return this.addWhere(statement as CallbackFunction<this, T>, 'and', params)
     else return this.addWhere(statement as string, 'and', params)
   }
 
@@ -54,9 +56,9 @@ export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params Optional parameters for the condition.
    * @returns {this} The current instance for method chaining.
    */
-  public orWhere(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public orWhere(statement: string | CallbackFunction<this, T> | ObjectLiteral, params?: Params<T>): this {
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'or')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'or', params)
+    else if (typeof statement === 'function') return this.addWhere(statement as CallbackFunction<this, T>, 'or', params)
     else return this.addWhere(statement as string, 'or', params)
   }
 
@@ -108,7 +110,7 @@ export class UpdateQueryBuilder extends QueryBuilder implements WhereExpressionB
         Object.entries(this.expressionMap.updateValue).filter(([key]) =>
           this.expressionMap.updateColumns.includes(key),
         ),
-      )
+      ) as Partial<T>
     }
 
     return Object.entries(this.expressionMap.updateValue)

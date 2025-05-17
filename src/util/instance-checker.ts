@@ -12,19 +12,19 @@ import { SchemaBuilder } from '../schema-builder/schema-builder'
 import { Table } from '../schema-builder/table'
 
 export class InstanceChecker {
-  public static isSelectQueryBuilder(obj: unknown): obj is SelectQueryBuilder {
+  public static isSelectQueryBuilder(obj: unknown): obj is SelectQueryBuilder<any> {
     return this.check(obj, 'SelectQueryBuilder')
   }
 
-  public static isInsertQueryBuilder(obj: unknown): obj is InsertQueryBuilder {
+  public static isInsertQueryBuilder(obj: unknown): obj is InsertQueryBuilder<any> {
     return this.check(obj, 'InsertQueryBuilder')
   }
 
-  public static isUpdateQueryBuilder(obj: unknown): obj is UpdateQueryBuilder {
+  public static isUpdateQueryBuilder(obj: unknown): obj is UpdateQueryBuilder<any> {
     return this.check(obj, 'UpdateQueryBuilder')
   }
 
-  public static isDeleteQueryBuilder(obj: unknown): obj is DeleteQueryBuilder {
+  public static isDeleteQueryBuilder(obj: unknown): obj is DeleteQueryBuilder<any> {
     return this.check(obj, 'DeleteQueryBuilder')
   }
 
@@ -40,7 +40,7 @@ export class InstanceChecker {
     return this.check(obj, 'QueryRunner')
   }
 
-  public static isQueryBuilder(obj: unknown): obj is QueryBuilder {
+  public static isQueryBuilder(obj: unknown): obj is QueryBuilder<any> {
     return this.check(obj, 'QueryBuilder')
   }
 
@@ -52,7 +52,7 @@ export class InstanceChecker {
     return this.check(obj, 'MetadataArgsStorage')
   }
 
-  public static isQueryExpressinMap(obj: unknown): obj is QueryExpressionMap {
+  public static isQueryExpressinMap(obj: unknown): obj is QueryExpressionMap<any> {
     return this.check(obj, 'QueryExpressionMap')
   }
 

@@ -24,7 +24,7 @@ class SchemaBuilderTestViewStorageSchema {
 
 @Schema({
   materialized: true,
-  materializedQuery: (qb) => qb.select().from('schema_builder_test_schema'),
+  materializedQuery: (qb) => qb.select('someColumn').from('schema_builder_test_schema'),
   materializedTo: 'schema_builder_test_view_storage_schema',
 })
 class SchemaBuilderTestViewSchema {}
