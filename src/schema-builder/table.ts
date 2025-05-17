@@ -14,10 +14,10 @@ export class Table {
   readonly '@instanceof' = Symbol.for('Table')
 
   /** The optional query builder used for building select queries. */
-  protected queryBuilder?: SelectQueryBuilder
+  protected queryBuilder?: SelectQueryBuilder<any>
 
   /** Query string or function for materialized views. */
-  query?: ((qb: QueryBuilder) => QueryBuilder) | string
+  query?: ((qb: QueryBuilder<any>) => QueryBuilder<any>) | string
 
   /** Optional target table or view to select data from (used for materialized views). */
   to?: string

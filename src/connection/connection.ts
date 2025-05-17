@@ -10,6 +10,7 @@ import { registerQueryBuilders } from '../util/register-query-builders'
 import { DatabaseSchema } from '../types/database-schema'
 import { SchemaBuilder } from '../schema-builder/schema-builder'
 import { ConnectionOptionsError } from '../errors/connection-options'
+import { ObjectLiteral } from 'src/types/object-literal'
 
 /**
  * The Connection class manages the connection to a ClickHouse database.
@@ -102,8 +103,8 @@ export class Connection {
    *
    * @returns A new instance of SelectQueryBuilder.
    */
-  public createQueryBuilder(): SelectQueryBuilder {
-    return new SelectQueryBuilder(this, this.queryRunner)
+  public createQueryBuilder<T extends ObjectLiteral>(): SelectQueryBuilder<T> {
+    return new SelectQueryBuilder<T>(this, this.queryRunner)
   }
 
   /**
@@ -156,7 +157,7 @@ export class Connection {
    * @param query - The SQL query string to execute.
    * @param params - Optional parameters to be passed to the query.
    */
-  public async command(query: string, params?: Params): Promise<void> {
+  public async command(query: string, params?: Params<any>): Promise<void> {
     await this.client.command({
       query: query,
       query_params: params,
@@ -170,7 +171,7 @@ export class Connection {
    * @param params - Optional parameters to be passed to the query.
    * @returns An array of results of type T.
    */
-  public async query<T>(query: string, params?: Params): Promise<T[]> {
+  public async query<T>(query: string, params?: Params<any>): Promise<T[]> {
     const result = await this.client.query({
       query: query,
       query_params: params,

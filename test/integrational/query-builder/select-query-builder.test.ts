@@ -34,7 +34,7 @@ class SelectQueryBuilderTestJoinSchema {
 
 describe('SelectQueryBuilder (integrational)', () => {
   let connection: Connection
-  let queryBuilder: SelectQueryBuilder
+  let queryBuilder: SelectQueryBuilder<SelectQueryBuilderTestSchema>
   let metadata: SchemaMetadata
   let joinMetadata: SchemaMetadata
   let tableName: string
@@ -226,9 +226,21 @@ describe('SelectQueryBuilder (integrational)', () => {
     const [result] = await queryBuilder
       .select((qb) => qb.select('COUNT(id)').from(tableName), 'count_id')
       .from(tableName, 't1')
+      .groupBy('count_id')
+      .orderBy('count_id')
       .limit(1)
       .execute<{ count_id: number }>()
 
     expect(+result.count_id).toBe(inserts.length)
+  })
+
+  it('should map result to target', async () => {
+    const result = await queryBuilder.select().from(tableName).execute<SelectQueryBuilderTestSchema>(true)
+
+    expect(result.length).toBe(inserts.length)
+    expect(result[0].id).toBe(inserts[0].id)
+    expect(result[0].name).toBe(inserts[0].name)
+    expect(result[0].dateOfBirth).toBe(inserts[0].dateOfBirth)
+    expect(result[0].numericArray).toStrictEqual(inserts[0].numericArray)
   })
 })
