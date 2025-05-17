@@ -5,8 +5,9 @@ import { InstanceChecker } from '../util/instance-checker'
 import { Table } from '../schema-builder/table'
 import { ColumnMetadata } from '../metadata/column-metadata'
 import { Engine } from '../types/engine'
-import { QueryBuilderCallback } from '../types/query-builder-callback'
 import { ObjectLiteral } from 'src/types/object-literal'
+import { CallbackFunction } from 'src/types/callback-function'
+import { QueryBuilder } from 'src/query-builder/query-builder'
 
 export class QueryRunner {
   readonly '@instanceof' = Symbol.for('QueryRunner')
@@ -45,13 +46,13 @@ export class QueryRunner {
     await this.command(`RENAME ${this.connection.getFullTablePath(from)} TO ${this.connection.getFullTablePath(to)}`)
   }
 
-  public async query<T>(sql: string, params?: Params): Promise<T[]> {
+  public async query<T>(sql: string, params?: Params<any>): Promise<T[]> {
     this.log(sql, params)
     const result = await this.connection.query<T>(sql, params)
     return result
   }
 
-  public async command(sql: string, params?: Params): Promise<void> {
+  public async command(sql: string, params?: Params<any>): Promise<void> {
     this.log(sql, params)
     await this.connection.command(sql, params)
   }
@@ -79,7 +80,7 @@ export class QueryRunner {
     return sql
   }
 
-  protected createViewQuerySql(query: QueryBuilderCallback | string): [string, ObjectLiteral] {
+  protected createViewQuerySql(query: CallbackFunction<QueryBuilder<any>> | string): [string, ObjectLiteral] {
     if (typeof query === 'string') return [query, {}]
     return query(this.connection.createQueryBuilder()).toSql()
   }
@@ -117,7 +118,7 @@ export class QueryRunner {
       .join(', ')})`
   }
 
-  protected log(sql: string, params?: Params): void {
+  protected log(sql: string, params?: Params<any>): void {
     if (!this.connection.logging) return
     if (!params) console.log(`QUERY: ${sql.trim()}`)
     else {

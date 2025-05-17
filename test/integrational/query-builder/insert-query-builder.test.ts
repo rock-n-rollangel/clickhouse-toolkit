@@ -27,7 +27,7 @@ class InsertQueryBuilderTestSchema {
 
 describe('InsertQueryBuilder (integrational)', () => {
   let connection: Connection
-  let queryBuilder: InsertQueryBuilder
+  let queryBuilder: InsertQueryBuilder<InsertQueryBuilderTestSchema>
   let metadata: SchemaMetadata
   let tableName: string
 
@@ -42,7 +42,7 @@ describe('InsertQueryBuilder (integrational)', () => {
   })
 
   beforeEach(async () => {
-    queryBuilder = connection.createQueryBuilder().insert()
+    queryBuilder = connection.createQueryBuilder<InsertQueryBuilderTestSchema>().insert()
     await connection.queryRunner.dropTable(metadata, true)
     await connection.queryRunner.createTable(Table.create(metadata))
   })

@@ -1,7 +1,7 @@
 import { Params } from './params'
 
-export interface WhereClause {
+export interface WhereClause<T> {
   type: 'simple' | 'and' | 'or'
-  condition: string | WhereClause[]
-  params?: Params
+  condition: string | WhereClause<T>[]
+  params?: Params<T>
 }
