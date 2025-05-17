@@ -1,14 +1,14 @@
 import { ObjectLiteral } from '../types/object-literal'
 import { QueryBuilder } from './query-builder'
 import { Params } from '../types/params'
-import { QueryBuilderCallback } from '../types/query-builder-callback'
 import { WhereExpressionBuilder } from './where-expression-builder'
+import { CallbackFunction } from 'src/types/callback-function'
 
 /**
  * A builder class for creating DELETE SQL queries.
  * This class extends the QueryBuilder and implements the WhereExpressionBuilder.
  */
-export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionBuilder {
+export class DeleteQueryBuilder<T extends ObjectLiteral> extends QueryBuilder<T> implements WhereExpressionBuilder<T> {
   readonly '@instanceof' = Symbol.for('DeleteQueryBuilder')
 
   /**
@@ -17,9 +17,10 @@ export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params - Optional parameters to bind to the query.
    * @returns The current DeleteQueryBuilder instance for method chaining.
    */
-  public where(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public where(statement: string | CallbackFunction<this, T> | ObjectLiteral, params?: Params<T>): this {
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'simple')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'simple', params)
+    else if (typeof statement === 'function')
+      return this.addWhere(statement as CallbackFunction<this, T>, 'simple', params)
     else return this.addWhere(statement as string, 'simple', params)
   }
 
@@ -29,9 +30,10 @@ export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params - Optional parameters to bind to the query.
    * @returns The current DeleteQueryBuilder instance for method chaining.
    */
-  public andWhere(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public andWhere(statement: string | CallbackFunction<this, T> | ObjectLiteral, params?: Params<T>): this {
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'and')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'and', params)
+    else if (typeof statement === 'function')
+      return this.addWhere(statement as CallbackFunction<this, T>, 'and', params)
     else return this.addWhere(statement as string, 'and', params)
   }
 
@@ -41,9 +43,9 @@ export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params - Optional parameters to bind to the query.
    * @returns The current DeleteQueryBuilder instance for method chaining.
    */
-  public orWhere(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public orWhere(statement: string | CallbackFunction<this, T> | ObjectLiteral, params?: Params<T>): this {
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'or')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'or', params)
+    else if (typeof statement === 'function') return this.addWhere(statement as CallbackFunction<this, T>, 'or', params)
     else return this.addWhere(statement as string, 'or', params)
   }
 
@@ -52,7 +54,7 @@ export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param limit - The maximum number of rows to delete.
    * @returns The current DeleteQueryBuilder instance for method chaining.
    */
-  public limit(limit: number): DeleteQueryBuilder {
+  public limit(limit: number): DeleteQueryBuilder<T> {
     this.expressionMap.limit = limit
     return this
   }
@@ -62,7 +64,7 @@ export class DeleteQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param offset - The number of rows to skip before starting to delete.
    * @returns The current DeleteQueryBuilder instance for method chaining.
    */
-  public offset(offset: number): DeleteQueryBuilder {
+  public offset(offset: number): DeleteQueryBuilder<T> {
     this.expressionMap.offset = offset
     return this
   }

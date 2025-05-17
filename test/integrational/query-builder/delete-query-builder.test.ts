@@ -29,7 +29,7 @@ class DeleteQueryBuilderTestSchema {
 
 describe('DeleteQueryBuilder (intergrational)', () => {
   let connection: Connection
-  let queryBuilder: SelectQueryBuilder
+  let queryBuilder: SelectQueryBuilder<DeleteQueryBuilderTestSchema>
   let metadata: SchemaMetadata
   let tableName: string
 

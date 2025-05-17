@@ -32,7 +32,7 @@ class UpdateQueryBuilderTestSchema {
 
 describe('UpdateQueryBuilder (integrational)', () => {
   let connection: Connection
-  let queryBuilder: SelectQueryBuilder
+  let queryBuilder: SelectQueryBuilder<UpdateQueryBuilderTestSchema>
   let metadata: SchemaMetadata
   let tableName: string
 
@@ -48,7 +48,7 @@ describe('UpdateQueryBuilder (integrational)', () => {
   })
 
   beforeEach(async () => {
-    queryBuilder = connection.createQueryBuilder()
+    queryBuilder = connection.createQueryBuilder<UpdateQueryBuilderTestSchema>()
     await connection.queryRunner.dropTable(metadata, true)
     await connection.queryRunner.createTable(Table.create(metadata))
 
@@ -105,7 +105,7 @@ describe('UpdateQueryBuilder (integrational)', () => {
         .update(tableName)
         .set({
           naming: 'wrong!',
-        })
+        } as unknown as Partial<UpdateQueryBuilderTestSchema>)
         .where({
           name: 'name_1',
         })
@@ -152,6 +152,7 @@ describe('UpdateQueryBuilder (integrational)', () => {
 
   it('should fail coz wrong table name', async () => {
     try {
+      const queryBuilder = connection.createQueryBuilder<{ _: number }>()
       await queryBuilder.update('_').set({ _: 1 }).execute()
     } catch (e) {
       expect(e).toBeInstanceOf(SchemaMetadataNotFoundError)

@@ -5,8 +5,20 @@ import { SelectQueryBuilder } from '../query-builder/select-query-builder'
 import { UpdateQueryBuilder } from '../query-builder/update-query-builder'
 
 export function registerQueryBuilders() {
-  QueryBuilder.registerQueryBuilderClass('InsertQueryBuilder', (qb: QueryBuilder) => new InsertQueryBuilder(qb))
-  QueryBuilder.registerQueryBuilderClass('SelectQueryBuilder', (qb: QueryBuilder) => new SelectQueryBuilder(qb))
-  QueryBuilder.registerQueryBuilderClass('UpdateQueryBuilder', (qb: QueryBuilder) => new UpdateQueryBuilder(qb))
-  QueryBuilder.registerQueryBuilderClass('DeleteQueryBuilder', (qb: QueryBuilder) => new DeleteQueryBuilder(qb))
+  QueryBuilder.registerQueryBuilderClass(
+    'InsertQueryBuilder',
+    (qb: QueryBuilder<any>) => new InsertQueryBuilder<any>(qb),
+  )
+  QueryBuilder.registerQueryBuilderClass(
+    'SelectQueryBuilder',
+    (qb: QueryBuilder<any>) => new SelectQueryBuilder<any>(qb),
+  )
+  QueryBuilder.registerQueryBuilderClass(
+    'UpdateQueryBuilder',
+    (qb: QueryBuilder<any>) => new UpdateQueryBuilder<any>(qb),
+  )
+  QueryBuilder.registerQueryBuilderClass(
+    'DeleteQueryBuilder',
+    (qb: QueryBuilder<any>) => new DeleteQueryBuilder<any>(qb),
+  )
 }

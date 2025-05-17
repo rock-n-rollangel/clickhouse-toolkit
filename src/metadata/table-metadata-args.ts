@@ -23,5 +23,5 @@ export class TableMetadataArgs {
   materializedTo?: string
 
   // A query to be executed for the materialized view, can be a function or a string
-  materializedQuery?: ((qb: SelectQueryBuilder) => SelectQueryBuilder) | string
+  materializedQuery?: ((qb: SelectQueryBuilder<any>) => SelectQueryBuilder<any>) | string
 }

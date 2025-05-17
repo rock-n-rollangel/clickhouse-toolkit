@@ -1,3 +1,4 @@
+import { CallbackFunction } from 'src/types/callback-function'
 import { ObjectLiteral } from '../types/object-literal'
 import { TableSchema } from '../types/table-schema'
 import { QueryBuilder } from './query-builder'
@@ -6,7 +7,7 @@ import { QueryBuilder } from './query-builder'
  * A builder class for creating INSERT SQL queries.
  * This class extends the QueryBuilder to provide methods specific to INSERT operations.
  */
-export class InsertQueryBuilder extends QueryBuilder {
+export class InsertQueryBuilder<T extends ObjectLiteral> extends QueryBuilder<T> {
   readonly '@instanceof' = Symbol.for('InsertQueryBuilder')
 
   /**
@@ -14,25 +15,25 @@ export class InsertQueryBuilder extends QueryBuilder {
    * @param callback - A function that modifies the query builder instance.
    * @returns The current InsertQueryBuilder instance for method chaining.
    */
-  public values(callback: (qb: this) => this): InsertQueryBuilder
+  public values(callback: CallbackFunction<this, T>): InsertQueryBuilder<T>
   /**
    * Sets a single value object to insert into the target table.
    * @param value - An object representing the values to insert.
    * @returns The current InsertQueryBuilder instance for method chaining.
    */
-  public values(value: ObjectLiteral): InsertQueryBuilder
+  public values(value: Partial<T>): InsertQueryBuilder<T>
   /**
    * Sets multiple value objects to insert into the target table.
    * @param values - An array of objects representing the values to insert.
    * @returns The current InsertQueryBuilder instance for method chaining.
    */
-  public values(values: ObjectLiteral[]): InsertQueryBuilder
+  public values(values: Partial<T>[]): InsertQueryBuilder<T>
   /**
    * Sets the values to insert into the target table.
    * @param value - A function, a single object, or an array of objects representing the values to insert.
    * @returns The current InsertQueryBuilder instance for method chaining.
    */
-  public values(value: ((qb: this) => this) | ObjectLiteral | ObjectLiteral[]): InsertQueryBuilder {
+  public values(value: CallbackFunction<this, T> | Partial<T> | Partial<T>[]): InsertQueryBuilder<T> {
     if (typeof value === 'function') {
       const [sql, processedParameters] = value(this.createQueryBuilder()).toSql()
       this.expressionMap.insertValues = sql
@@ -52,7 +53,7 @@ export class InsertQueryBuilder extends QueryBuilder {
    * @param columns - Optional array of columns to insert values into.
    * @returns The current InsertQueryBuilder instance for method chaining.
    */
-  public into(target: TableSchema | string, columns?: string[]): InsertQueryBuilder {
+  public into(target: TableSchema | string, columns?: string[]): InsertQueryBuilder<T> {
     if (typeof target === 'string') {
       this.expressionMap.table = target
     } else {
@@ -83,12 +84,12 @@ export class InsertQueryBuilder extends QueryBuilder {
    * Retrieves the values to insert, optionally filtering by specified columns.
    * @returns An array of objects or a string representing the values to insert.
    */
-  protected getValues(): ObjectLiteral[] | string {
+  protected getValues(): Partial<T>[] | string {
     const insertColumns = this.expressionMap.insertColumns
     if (insertColumns && Array.isArray(insertColumns) && typeof this.expressionMap.insertValues !== 'string') {
       return this.expressionMap.insertValues.map((value) => {
         return Object.fromEntries(Object.entries(value).filter(([key]) => insertColumns.includes(key)))
-      })
+      }) as Partial<T>[]
     }
 
     return this.expressionMap.insertValues

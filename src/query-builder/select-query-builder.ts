@@ -1,18 +1,19 @@
 import { QueryBuilder } from './query-builder'
 import { SelectStatementError } from '../errors/select-empty'
 import { TableNameError } from '../errors/table-name'
-import { QueryBuilderCallback } from '../types/query-builder-callback'
 import { Params } from '../types/params'
 import { ObjectLiteral } from '../types/object-literal'
 import { WhereExpressionBuilder } from './where-expression-builder'
 import { JoinAttribute } from './join-attribute'
 import { InstanceChecker } from '../util/instance-checker'
+import { CallbackFunction } from '../types/callback-function'
+import { PropertyNotFoundError } from '../errors/property-not-found'
 
 /**
  * SelectQueryBuilder is responsible for building SQL SELECT queries.
  * It extends the base QueryBuilder class and implements the WhereExpressionBuilder interface.
  */
-export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionBuilder {
+export class SelectQueryBuilder<T extends ObjectLiteral> extends QueryBuilder<T> implements WhereExpressionBuilder<T> {
   readonly '@instanceof' = Symbol.for('SelectQueryBuilder')
 
   /**
@@ -22,7 +23,7 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    */
   protected parseSelect(): string {
     if (!this.expressionMap.selects.length) throw new SelectStatementError()
-    return `SELECT ${this.expressionMap.selects.map((select) => this.addAlias(select)).join(', ')}`
+    return `SELECT ${this.expressionMap.selects.map((select: string) => this.addAlias(select)).join(', ')}`
   }
 
   /**
@@ -121,7 +122,7 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
     alias: string,
     joinTable: string,
     condition: string,
-    params?: Params,
+    params?: Params<T>,
   ): void {
     if (params) {
       this.setParameters(params)
@@ -136,36 +137,39 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param columnAlias Optional alias for the selected field.
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
-  public select(): SelectQueryBuilder
-  public select(fields: string[]): SelectQueryBuilder
-  public select(field: string): SelectQueryBuilder
-  public select(qb: QueryBuilderCallback, columnAlias: string): SelectQueryBuilder
-  public select(field?: string | string[] | QueryBuilderCallback, columnAlias?: string): SelectQueryBuilder {
+  public select(): SelectQueryBuilder<T>
+  public select(fields: string[] | (keyof T)[]): SelectQueryBuilder<T>
+  public select(field: string | keyof T): SelectQueryBuilder<T>
+  public select(qb: CallbackFunction<this, T>, columnAlias: string): SelectQueryBuilder<T>
+  public select(
+    field?: string | keyof T | string[] | (keyof T)[] | CallbackFunction<this, T>,
+    columnAlias?: string,
+  ): SelectQueryBuilder<T> {
     if (!field && !columnAlias) {
       this.expressionMap.parameters = []
       this.expressionMap.selects = ['*']
 
-      return this as any as SelectQueryBuilder
+      return this as any as SelectQueryBuilder<T>
     }
 
     if (typeof field === 'function') {
-      const qb = field(this.createQueryBuilder()) as SelectQueryBuilder
+      const qb = field(this.createQueryBuilder()) as SelectQueryBuilder<T>
       const [sql, params] = qb.toSql()
       this.expressionMap.parameters.push(params)
       this.expressionMap.selects = [`(${sql}) AS ${columnAlias}`]
 
-      return this as any as SelectQueryBuilder
+      return this as any as SelectQueryBuilder<T>
     }
 
     this.expressionMap.selects = Array.isArray(field) ? field : [field]
-    return this as any as SelectQueryBuilder
+    return this as any as SelectQueryBuilder<T>
   }
 
   /**
    * Converts the query builder to an SQL string.
-   * @returns {[string, ObjectLiteral]} The generated SQL query string.
+   * @returns {[string, Params<T>]} The generated SQL query string.
    */
-  public toSql(): [string, ObjectLiteral] {
+  public toSql(): [string, Params<T>] {
     return this.preprocess(
       this.parseSelect() +
         this.parseTable() +
@@ -185,12 +189,12 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param columnAlias Optional alias for the added field.
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
-  public addSelect(field: string): SelectQueryBuilder
-  public addSelect(fields: string[]): SelectQueryBuilder
-  public addSelect(callback: QueryBuilderCallback, columnAlias: string): SelectQueryBuilder
-  public addSelect(field: string | string[] | QueryBuilderCallback, columnAlias?: string): SelectQueryBuilder {
+  public addSelect(field: string): SelectQueryBuilder<T>
+  public addSelect(fields: string[]): SelectQueryBuilder<T>
+  public addSelect(callback: CallbackFunction<this, T>, columnAlias: string): SelectQueryBuilder<T>
+  public addSelect(field: string | string[] | CallbackFunction<this, T>, columnAlias?: string): SelectQueryBuilder<T> {
     if (typeof field === 'function') {
-      const qb = field(this.createQueryBuilder()) as SelectQueryBuilder
+      const qb = field(this.createQueryBuilder()) as SelectQueryBuilder<T>
       const [sql, params] = qb.toSql()
       this.expressionMap.parameters.push(params)
       this.addSelect(`(${sql}) AS ${this.connection.escape(columnAlias)}`)
@@ -208,10 +212,11 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params Optional parameters for the condition.
    * @returns {this} The current instance for method chaining.
    */
-  public where(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public where(statement: string | CallbackFunction<this> | ObjectLiteral, params?: Params<T>): this {
     this.expressionMap.parameters = []
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'simple')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'simple', params)
+    else if (typeof statement === 'function')
+      return this.addWhere(statement as CallbackFunction<this>, 'simple', params)
     else return this.addWhere(statement as string, 'simple', params)
   }
 
@@ -221,9 +226,9 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params Optional parameters for the condition.
    * @returns {this} The current instance for method chaining.
    */
-  public andWhere(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public andWhere(statement: string | CallbackFunction<this> | ObjectLiteral, params?: Params<T>): this {
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'and')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'and', params)
+    else if (typeof statement === 'function') return this.addWhere(statement as CallbackFunction<this>, 'and', params)
     else return this.addWhere(statement as string, 'and', params)
   }
 
@@ -233,9 +238,9 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params Optional parameters for the condition.
    * @returns {this} The current instance for method chaining.
    */
-  public orWhere(statement: string | ((qb: this) => this) | ObjectLiteral, params?: Params): this {
+  public orWhere(statement: string | CallbackFunction<this> | ObjectLiteral, params?: Params<T>): this {
     if (typeof statement === 'object' && statement !== null) return this.addWhere(statement, 'or')
-    else if (typeof statement === 'function') return this.addWhere(statement as QueryBuilderCallback, 'or', params)
+    else if (typeof statement === 'function') return this.addWhere(statement as CallbackFunction<this>, 'or', params)
     else return this.addWhere(statement as string, 'or', params)
   }
 
@@ -244,9 +249,9 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param field The field(s) to group by, or an array of fields.
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
-  public groupBy(field: string): SelectQueryBuilder
-  public groupBy(fields: string[]): SelectQueryBuilder
-  public groupBy(field: string | string[]): SelectQueryBuilder {
+  public groupBy(field: string): SelectQueryBuilder<T>
+  public groupBy(fields: string[]): SelectQueryBuilder<T>
+  public groupBy(field: string | string[]): SelectQueryBuilder<T> {
     this.expressionMap.groupBys = Array.isArray(field) ? field : [field]
     return this
   }
@@ -257,11 +262,11 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param direction The direction to order the results (e.g., 'ASC' or 'DESC').
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
-  public orderBy(field: string): SelectQueryBuilder
-  public orderBy(fields: string[]): SelectQueryBuilder
-  public orderBy(field: string, direction: string): SelectQueryBuilder
-  public orderBy(field: string[], direction: string): SelectQueryBuilder
-  public orderBy(field: string | string[] | ObjectLiteral, direction?: string): SelectQueryBuilder {
+  public orderBy(field: string): SelectQueryBuilder<T>
+  public orderBy(fields: string[]): SelectQueryBuilder<T>
+  public orderBy(field: string, direction: string): SelectQueryBuilder<T>
+  public orderBy(field: string[], direction: string): SelectQueryBuilder<T>
+  public orderBy(field: string | string[] | ObjectLiteral, direction?: string): SelectQueryBuilder<T> {
     if (direction) this.expressionMap.orderByDirection = direction
     this.expressionMap.orderBys = Array.isArray(field) ? field : [field]
     return this
@@ -273,9 +278,9 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param alias Optional alias for the table.
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
-  public from(table: string, alias?: string): SelectQueryBuilder
-  public from(qb: QueryBuilderCallback): SelectQueryBuilder
-  public from(table: string | QueryBuilderCallback, alias?: string): SelectQueryBuilder {
+  public from(table: string, alias?: string): SelectQueryBuilder<T>
+  public from(qb: CallbackFunction<this, T>): SelectQueryBuilder<T>
+  public from(table: string | CallbackFunction<this, T>, alias?: string): SelectQueryBuilder<T> {
     if (typeof table === 'function') {
       this.expressionMap.table = `(${table(this.createQueryBuilder()).toSql()})`
 
@@ -297,7 +302,7 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params Optional parameters for the join condition.
    * @returns {this} The current instance for method chaining.
    */
-  public innerJoin(table: string, alias: string, condition: string, params?: Params): this {
+  public innerJoin(table: string, alias: string, condition: string, params?: Params<any>): this {
     this.join('INNER', alias, table, condition, params)
     return this
   }
@@ -310,7 +315,7 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param params Optional parameters for the join condition.
    * @returns {this} The current instance for method chaining.
    */
-  public leftJoin(table: string, alias: string, condition: string, params?: Params): this {
+  public leftJoin(table: string, alias: string, condition: string, params?: Params<any>): this {
     this.join('LEFT', alias, table, condition, params)
     return this
   }
@@ -320,7 +325,7 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param limit The maximum number of results to return.
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
-  public limit(limit: number): SelectQueryBuilder {
+  public limit(limit: number): SelectQueryBuilder<T> {
     this.expressionMap.limit = limit
     return this
   }
@@ -331,16 +336,37 @@ export class SelectQueryBuilder extends QueryBuilder implements WhereExpressionB
    * @param offset The number of results to skip.
    * @returns {SelectQueryBuilder} The current instance for method chaining.
    */
-  public offset(offset: number): SelectQueryBuilder {
+  public offset(offset: number): SelectQueryBuilder<T> {
     this.expressionMap.offset = offset
     return this
   }
 
   /**
    * Executes the built query and returns the results.
-   * @returns {Promise<T[]>} A promise that resolves to an array of results of type T.
+   * @returns {Promise<R[]>} A promise that resolves to an array of results of type R.
    */
-  public async execute<T>(): Promise<T[]> {
-    return await this.queryRunner.query(...this.toSql())
+  public async execute<R = T>(mapped?: boolean): Promise<R[]> {
+    const result = await this.queryRunner.query<R>(...this.toSql())
+
+    if (mapped) {
+      const metadata = this.connection.getMetadata(this.expressionMap.table)
+      if (typeof metadata.tableMetadataArgs.target === 'function') {
+        return result.map((row) => {
+          const target = metadata.tableMetadataArgs.target as any
+          const instance = new target()
+
+          for (const key in row) {
+            const columnMetadata = metadata.columnMetadataArgs?.find((column) => column.options.name === key)
+            if (columnMetadata) {
+              instance[columnMetadata.propertyName] = row[key]
+            } else throw new PropertyNotFoundError(key, target.name)
+          }
+
+          return instance
+        })
+      }
+    }
+
+    return result
   }
 }
