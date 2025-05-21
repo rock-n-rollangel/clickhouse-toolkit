@@ -1,4 +1,4 @@
-import { ColumnMetadata } from '../metadata/column-metadata'
+import { ColumnMetadata } from '../common/column-metadata'
 import { BaseTableOptions } from './base-table-options'
 import { Engine } from './engine'
 
