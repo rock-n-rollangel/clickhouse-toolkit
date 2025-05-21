@@ -14,6 +14,10 @@ jobs:
     services:
       clickhouse:
         image: clickhouse/clickhouse-server:latest
+        env:
+          CLICKHOUSE_USER: user
+          CLICKHOUSE_PASSWORD: password
+          CLICKHOUSE_DB: test_db
         ports:
           - 8123:8123
         options: >-
@@ -36,10 +40,6 @@ jobs:
             echo "Waiting for ClickHouse..."
             sleep 1
           done
-
-      - name: Create database
-        run: |
-          curl -sS -X POST 'http://localhost:8123' --data-binary "CREATE DATABASE IF NOT EXISTS test_db"
 
       - run: npm ci
       - run: npm test
