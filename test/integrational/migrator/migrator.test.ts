@@ -13,13 +13,13 @@ describe('Migrator (intergrational)', () => {
 
   it('should migrate up', async () => {
     await connection.migrator.up()
-    const tables = await connection.queryRunner.query<{ name: string }>('SHOW TABLES')
+    const tables = await connection.queryRunner.query<{ name: string }>('SHOW TABLES FROM test_db')
     expect(tables.find(({ name }) => name === 'users')).toBeDefined()
   })
 
   it('should migrate down', async () => {
     await connection.migrator.down()
-    const tables = await connection.queryRunner.query<{ name: string }>('SHOW TABLES')
+    const tables = await connection.queryRunner.query<{ name: string }>('SHOW TABLES FROM test_db')
     expect(tables.find(({ name }) => name === 'users')).not.toBeDefined()
   })
 

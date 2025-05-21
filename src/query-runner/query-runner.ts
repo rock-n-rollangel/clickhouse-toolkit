@@ -38,7 +38,7 @@ export class QueryRunner {
     } else tableName = table
 
     await this.command(
-      `DROP ${materialized ? 'VIEW' : 'TABLE'} ${ifExists ? 'IF EXISTS' : ''} ${this.connection.escape(tableName)}`,
+      `DROP ${materialized ? 'VIEW' : 'TABLE'} ${ifExists ? 'IF EXISTS' : ''} ${this.connection.getFullTablePath(tableName)}`,
     )
   }
 
@@ -66,11 +66,11 @@ export class QueryRunner {
 
     if ('to' in table) {
       sql =
-        `CREATE MATERIALIZED VIEW ${ifNotExists ? 'IF NOT EXISTS' : ''} ${table.name} TO ${table.to} AS ` +
+        `CREATE MATERIALIZED VIEW ${ifNotExists ? 'IF NOT EXISTS' : ''} ${this.connection.getFullTablePath(table.name)} TO ${this.connection.getFullTablePath(table.to)} AS ` +
         this.createViewQuerySql(table.query)[0]
     } else {
       sql =
-        `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS' : ''} ${this.connection.escape(table.name)} ` +
+        `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS' : ''} ${this.connection.getFullTablePath(table.name)} ` +
         this.createColumnsSql(table.columns) +
         this.createEngineSql(table.engine) +
         this.createPrimaryKeySql(table.primaryColumns)
