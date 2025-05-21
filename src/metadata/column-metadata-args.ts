@@ -1,4 +1,4 @@
-import { ColumnOptions } from '../decorators/column/options/column-options'
+import { ColumnOptions } from '../common/column-options'
 
 /**
  * Represents metadata for a database column.

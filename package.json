@@ -1,6 +1,6 @@
 {
   "name": "clickhouse-toolkit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A customizable SQL query builder for ClickHouse databases.",
   "license": "MIT",
   "author": {
@@ -17,6 +17,9 @@
   },
   "engines": {
     "node": ">=16"
+  },
+  "bin": {
+    "clickhouse-toolkit": "./cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

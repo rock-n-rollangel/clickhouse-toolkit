@@ -3,7 +3,7 @@ import { Connection } from '../connection/connection'
 import { SchemaMetadata } from '../metadata/schema-metadata'
 import { InstanceChecker } from '../util/instance-checker'
 import { Table } from '../schema-builder/table'
-import { ColumnMetadata } from '../metadata/column-metadata'
+import { ColumnMetadata } from '../common/column-metadata'
 import { Engine } from '../types/engine'
 import { ObjectLiteral } from 'src/types/object-literal'
 import { CallbackFunction } from 'src/types/callback-function'
@@ -73,8 +73,7 @@ export class QueryRunner {
         `CREATE TABLE ${ifNotExists ? 'IF NOT EXISTS' : ''} ${this.connection.escape(table.name)} ` +
         this.createColumnsSql(table.columns) +
         this.createEngineSql(table.engine) +
-        this.createPrimaryKeySql(table.primaryColumns) +
-        this.createOrderBySql(table.orderColumns)
+        this.createPrimaryKeySql(table.primaryColumns)
     }
 
     return sql
@@ -105,7 +104,7 @@ export class QueryRunner {
           ? `${column.function}(${this.connection.escape(column.name)})`
           : this.connection.escape(column.name),
       )
-      .join(', ')}) `
+      .join(', ')})`
   }
 
   protected createOrderBySql(columns: ColumnMetadata[]): string {
