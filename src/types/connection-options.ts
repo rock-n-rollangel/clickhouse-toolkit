@@ -69,4 +69,19 @@ export interface ConnectionOptions {
    * Optional flag to enable or disable logging of SQL queries executed through the connection.
    */
   logging?: boolean
+
+  /**
+   * Optional flag to run migrations upon connection initialization.
+   */
+  runMigrations?: boolean
+
+  /**
+   * Optional path to the migrations directories.
+   */
+  migrations?: string[]
+
+  /**
+   * Optional name of the migrations table.
+   */
+  migrationsTableName?: string
 }

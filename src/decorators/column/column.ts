@@ -1,5 +1,5 @@
 import { getMetadataArgsStorage } from '../../globals'
-import { ColumnOptions } from './options/column-options'
+import { ColumnOptions } from '../../common/column-options'
 
 /**
  * A decorator function for defining a column in the database.

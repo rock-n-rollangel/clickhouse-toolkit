@@ -2,7 +2,7 @@ import { QueryRunner } from '../../../src/query-runner/query-runner'
 import { Connection } from '../../../src/connection/connection'
 import { SchemaMetadata } from '../../../src/metadata/schema-metadata'
 import { Table } from '../../../src/schema-builder/table'
-import { ColumnMetadata } from '../../../src/metadata/column-metadata'
+import { ColumnMetadata } from '../../../src/common/column-metadata'
 import { Engine } from '../../../src/types/engine'
 
 describe('QueryRunner', () => {
@@ -31,18 +31,15 @@ describe('QueryRunner', () => {
   })
 
   it('should create a table and call command method', async () => {
-    const table: Table = {
-      '@instanceof': Symbol.for('Table'),
+    const table: Table = new Table({
       name: 'test_table',
-      columns: [{ name: 'id', type: 'UInt32', nullable: false, unique: true }] as ColumnMetadata[],
+      columns: [{ name: 'id', type: 'UInt32', nullable: false, unique: true, primary: true }] as ColumnMetadata[],
       engine: 'MergeTree' as Engine,
-      primaryColumns: [{ name: 'id' }] as ColumnMetadata[],
-      orderColumns: [{ name: 'id' }] as ColumnMetadata[],
-    }
+    })
 
     await queryRunner.createTable(table, true)
     expect(mockConnection.command).toHaveBeenCalledWith(
-      "CREATE TABLE IF NOT EXISTS `test_table` ( `id` UInt32 COMMENT 'UNIQUE FIELD' ) ENGINE MergeTree PRIMARY KEY (`id`) ORDER BY (`id`)",
+      "CREATE TABLE IF NOT EXISTS `test_table` ( `id` UInt32 COMMENT 'UNIQUE FIELD' ) ENGINE MergeTree PRIMARY KEY (`id`)",
       undefined,
     )
   })

@@ -1,4 +1,4 @@
-import { ColumnType } from '../../../types/data-types'
+import { ColumnType } from '../types/data-types'
 
 /**
  * Class representing the options for a database column.
