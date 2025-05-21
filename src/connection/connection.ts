@@ -233,8 +233,8 @@ export class Connection {
       await instance.createSchemaBuilder().synchronize()
     }
 
+    await instance._migrator.init()
     if (options.runMigrations === true) {
-      await instance._migrator.init()
       await instance._migrator.up()
     }
 
