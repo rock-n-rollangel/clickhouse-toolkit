@@ -7,10 +7,10 @@ import { ConnectionOptions } from '../types/connection-options'
 import { SchemaMetadata } from '../metadata/schema-metadata'
 import { getMetadataArgsStorage } from '../globals'
 import { registerQueryBuilders } from '../util/register-query-builders'
-import { DatabaseSchema } from '../types/database-schema'
 import { SchemaBuilder } from '../schema-builder/schema-builder'
 import { ConnectionOptionsError } from '../errors/connection-options'
-import { ObjectLiteral } from 'src/types/object-literal'
+import { ObjectLiteral } from '../types/object-literal'
+import { Migrator } from '../migrator/migrator'
 
 /**
  * The Connection class manages the connection to a ClickHouse database.
@@ -25,11 +25,11 @@ export class Connection {
   /** The optional query runner for executing queries. */
   private _queryRunner?: QueryRunner
 
+  /** The migrator instance for running migrations. */
+  private readonly _migrator: Migrator
+
   /** Array of schema metadata representing the database structure. */
   public readonly schemaMetadatas: SchemaMetadata[] = []
-
-  /** The schema of the database, if available. */
-  public readonly schema?: DatabaseSchema
 
   /** The name of the connected database. */
   public readonly database: string
@@ -55,6 +55,11 @@ export class Connection {
 
     this.database = options.database
     this.logging = options.logging
+    this._migrator = new Migrator(
+      this,
+      options.migrationsTableName ?? 'clickhouse_toolkit_migrations',
+      options.migrations,
+    )
 
     registerQueryBuilders()
 
@@ -96,6 +101,15 @@ export class Connection {
   public get queryRunner(): QueryRunner {
     if (!this._queryRunner) this._queryRunner = new QueryRunner(this)
     return this._queryRunner
+  }
+
+  /**
+   * Retrieves the migrator for running migrations.
+   *
+   * @returns The Migrator instance.
+   */
+  public get migrator(): Migrator {
+    return this._migrator
   }
 
   /**
@@ -217,6 +231,11 @@ export class Connection {
 
     if (options.synchronize === true) {
       await instance.createSchemaBuilder().synchronize()
+    }
+
+    if (options.runMigrations === true) {
+      await instance._migrator.init()
+      await instance._migrator.up()
     }
 
     return instance

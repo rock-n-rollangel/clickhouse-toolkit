@@ -1,5 +1,5 @@
 import { Connection } from '../connection/connection'
-import { ColumnMetadata } from './column-metadata'
+import { ColumnMetadata } from '../common/column-metadata'
 import { ColumnMetadataArgs } from './column-metadata-args'
 import { TableMetadataArgs } from './table-metadata-args'
 

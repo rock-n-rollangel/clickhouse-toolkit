@@ -1,4 +1,6 @@
-export class TableNameError extends Error {
+import { ClickHouseToolkitError } from './clickhouse-toolkit-error'
+
+export class TableNameError extends ClickHouseToolkitError {
   constructor() {
     super('Table name not provided')
   }
