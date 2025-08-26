@@ -1,15 +1,16 @@
 # ClickHouse Toolkit
 
-A customizable SQL query builder for [ClickHouse](https://clickhouse.com/) databases. This library provides a flexible and intuitive API to construct complex SQL queries with ease, supporting `SELECT`, `JOIN`, `WHERE`, and more.
-
-Examples available at [examples](https://github.com/rock-n-rollangel/clickhouse-toolkit-example).
+A comprehensive TypeScript ORM and toolkit for [ClickHouse](https://clickhouse.com/) databases. This library provides decorator-based schema definitions, automatic schema synchronization, migrations, and a fluent query builder API.
 
 ## Features
 
-- **Fluent API:** Chain methods for building queries.
-- **Support for JOINs:** Easily build `INNER JOIN` and `LEFT JOIN` clauses.
-- **Parameterized Queries:** Automatically escape parameters to prevent SQL injection.
-- **SELECT statements:** Supports basic and advanced `SELECT` queries.
+- **Decorator-based Schema Definition:** Define tables and columns using TypeScript decorators
+- **Automatic Schema Synchronization:** Keep your database schema in sync with your TypeScript models
+- **Migration System:** Version-controlled database schema changes
+- **Fluent Query Builder:** Chain methods for building complex SQL queries
+- **Materialized Views:** Support for ClickHouse materialized views
+- **CLI Tool:** Command-line interface for running migrations
+- **Type Safety:** Full TypeScript support with type inference
 
 ## Installation
 
@@ -19,66 +20,319 @@ Install the package via npm:
 npm install clickhouse-toolkit
 ```
 
-## Usage
+## Quick Start
+
+### 1. Define Your Schema
 
 ```typescript
-import { SelectQueryBuilder } from 'clickhouse-toolkit'
+import { Schema } from 'clickhouse-toolkit'
+import { Column } from 'clickhouse-toolkit'
 
-// Example: Select with WHERE and JOIN
-const qb = new SelectQueryBuilder()
-const query = await qb
+@Schema({ engine: 'MergeTree' })
+export class User {
+  @Column({ type: 'UUID', primary: true })
+  id: string
+
+  @Column({ type: 'String' })
+  name: string
+
+  @Column({ type: 'DateTime', orderBy: true })
+  createdAt: string
+
+  @Column({ type: 'UInt32' })
+  age: number
+}
+```
+
+### 2. Initialize Connection
+
+```typescript
+import { Connection } from 'clickhouse-toolkit'
+
+const connection = await Connection.initialize({
+  url: 'http://localhost:8123',
+  username: 'default',
+  password: '',
+  database: 'my_database',
+  schemas: [User], // Register your schema classes
+  logging: true
+})
+```
+
+### 3. Synchronize Schema
+
+```typescript
+const schemaBuilder = connection.createSchemaBuilder()
+await schemaBuilder.synchronize() // Creates/updates tables based on your schemas
+```
+
+### 4. Query Your Data
+
+```typescript
+// Simple query
+const users = await connection
+  .createQueryBuilder()
+  .select(['id', 'name', 'age'])
+  .from('user')
+  .where('age > :age', { age: 18 })
+  .execute<User>()
+
+// Complex query with joins
+const userOrders = await connection
+  .createQueryBuilder()
+  .select(['u.name', 'o.order_id', 'o.total'])
+  .from('user', 'u')
+  .innerJoin('order', 'o', 'u.id = o.user_id')
+  .where('o.total > :total', { total: 100 })
+  .execute<{ name: string; order_id: string; total: number }>()
+```
+
+## Schema Definition
+
+### Table Decorators
+
+```typescript
+@Schema({ engine: 'MergeTree' })
+export class MyTable {
+  // columns...
+}
+
+// With custom table name
+@Schema({ name: 'custom_table_name', engine: 'MergeTree' })
+export class MyTable {
+  // columns...
+}
+```
+
+### Column Decorators
+
+```typescript
+export class Example {
+  @Column({ type: 'String', primary: true })
+  id: string
+
+  @Column({ type: 'DateTime' })
+  timestamp: string
+
+  @Column({ type: 'Array(Int32)' })
+  numbers: number[]
+
+  @Column({ type: 'Nullable(String)' })
+  optionalField?: string
+}
+```
+
+### Materialized Views
+
+```typescript
+@Schema({ engine: 'MergeTree' })
+export class UserStatsStorage {
+  @Column({ type: 'String' })
+  userId: string
+
+  @Column({ type: 'UInt32' })
+  orderCount: number
+}
+
+@Schema({
+  materialized: true,
+  materializedQuery: (qb) => 
+    qb.select(['user_id', 'COUNT(*) as order_count'])
+      .from('orders')
+      .groupBy('user_id'),
+  materializedTo: 'user_stats_storage'
+})
+export class UserStats {}
+```
+
+## Migrations
+
+### Creating Migrations
+
+Create migration files in your migrations directory:
+
+```typescript
+// migrations/create_users_table.ts
+import { QueryRunner } from 'clickhouse-toolkit'
+import { Table } from 'clickhouse-toolkit'
+
+export function up(queryRunner: QueryRunner) {
+  return queryRunner.createTable(
+    new Table({
+      name: 'users',
+      columns: [
+        { name: 'id', type: 'UInt32', primary: true },
+        { name: 'name', type: 'String' },
+        { name: 'email', type: 'String' }
+      ],
+      engine: 'MergeTree'
+    }),
+    true
+  )
+}
+
+export function down(queryRunner: QueryRunner) {
+  return queryRunner.dropTable('users', true)
+}
+```
+
+### Running Migrations
+
+#### Programmatically
+
+```typescript
+const connection = await Connection.initialize({
+  // ... connection options
+  migrations: ['migrations/*'] // Path to migration files
+})
+
+await connection.migrator.init()
+await connection.migrator.up() // Apply pending migrations
+await connection.migrator.down(1) // Rollback last migration
+await connection.migrator.status() // Show migration status
+```
+
+#### Using CLI
+
+```bash
+# Set environment variables
+export CLICKHOUSE_URL="http://localhost:8123"
+export CLICKHOUSE_USERNAME="default"
+export CLICKHOUSE_PASSWORD=""
+export CLICKHOUSE_DATABASE="my_database"
+export CLICKHOUSE_MIGRATIONS="migrations/*"
+
+# Run migrations
+npx clickhouse-toolkit up
+npx clickhouse-toolkit down 1
+npx clickhouse-toolkit status
+```
+
+## Query Builder
+
+### Parameter Type Handling
+
+The library automatically handles ClickHouse parameter type casting based on your schema definitions. When you use parameters in your queries, the library looks up the column type from your schema and applies the appropriate type casting automatically.
+
+**Usage:**
+```typescript
+// The library automatically casts parameters based on your schema
+.where('age >= :age', { age: 18 })        // Uses column type from schema
+.where('total > :total', { total: 100.50 }) // Uses column type from schema
+.where('name LIKE :name', { name: '%john%' }) // Uses column type from schema
+```
+
+### Select Queries
+
+```typescript
+const queryBuilder = connection.createQueryBuilder()
+
+// Basic select
+const results = await queryBuilder
   .select(['id', 'name'])
+  .from('users')
+  .execute<User>()
+
+// With conditions
+const adults = await queryBuilder
+  .select(['id', 'name', 'age'])
+  .from('users')
+  .where('age >= :age', { age: 18 })
+  .execute<User>()
+
+// With joins
+const userOrders = await queryBuilder
+  .select(['u.name', 'o.order_id'])
   .from('users', 'u')
   .innerJoin('orders', 'o', 'u.id = o.user_id')
-  .where('u.age > :age', { age: 18 })
-  .execute<{ id: number; name: string }>()
+  .where('o.total > :total', { total: 100 })
+  .execute<{ name: string; order_id: string }>()
 ```
 
-## API
-
-### `select(fields: string[] | string): SelectQueryBuilder`
-
-Specifies the `SELECT` fields for the query.
+### Insert Queries
 
 ```typescript
-qb.select(['id', 'name'])
+// Insert single record
+await connection.insert(
+  { id: '1', name: 'John', age: 25 },
+  'users'
+)
+
+// Insert multiple records
+await connection.insert([
+  { id: '1', name: 'John', age: 25 },
+  { id: '2', name: 'Jane', age: 30 }
+], 'users')
 ```
 
-### `from(table: string, alias?: string): SelectQueryBuilder`
-
-Defines the `FROM` clause of the query.
+### Update Queries
 
 ```typescript
-qb.from('users', 'u')
+await connection
+  .createQueryBuilder()
+  .update('users')
+  .set({ age: 26 })
+  .where('id = :id', { id: '1' })
+  .execute()
 ```
 
-### `where(statement: string, params?: Object): SelectQueryBuilder`
-
-Adds a `WHERE` clause.
+### Delete Queries
 
 ```typescript
-qb.where('u.age > :age', { age: 18 })
+await connection
+  .createQueryBuilder()
+  .delete()
+  .from('users')
+  .where('age < :age', { age: 18 })
+  .execute()
 ```
 
-### `innerJoin(table: string, alias: string, condition: string, params?: Object): SelectQueryBuilder`
+## Schema Management
 
-Adds an `INNER JOIN`.
+### Synchronization
 
 ```typescript
-qb.innerJoin('orders', 'o', 'u.id = o.user_id')
+const schemaBuilder = connection.createSchemaBuilder()
+
+// Full synchronization (creates, updates, drops tables)
+await schemaBuilder.synchronize()
+
+// Individual operations
+await schemaBuilder.createTable(metadata)
+await schemaBuilder.updateTable(metadata)
+await schemaBuilder.dropTable('table_name')
 ```
 
-### `execute<T>(): T[]`
-
-Builds the final SQL query string and executes it.
+### Schema Inspection
 
 ```typescript
-const result = qb.execute<{ id: number; name: string }>()
+// Get all tables
+const tables = await schemaBuilder.getTables()
+
+// Get columns for a table
+const columns = await schemaBuilder.getColumns()
 ```
 
-## Customization
+## Configuration
 
-You can extend the `SelectQueryBuilder` class to add custom logic or override default behavior as per your needs.
+### Connection Options
+
+```typescript
+const connection = await Connection.initialize({
+  url: 'http://localhost:8123',
+  username: 'default',
+  password: '',
+  database: 'my_database',
+  schemas: [User, Order], // Your schema classes
+  migrations: ['migrations/*'], // Migration file patterns
+  migrationsTableName: 'clickhouse_toolkit_migrations',
+  logging: true, // Enable SQL query logging
+  settings: {
+    // ClickHouse settings
+    max_execution_time: 60
+  }
+})
+```
 
 ## Contributing
 
