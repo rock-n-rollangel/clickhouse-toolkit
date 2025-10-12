@@ -24,7 +24,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
-    "test": "jest test/unit && jest test/e2e --runInBand",
+    "test": "jest test/unit && USE_EXTERNAL_CLICKHOUSE=true jest test/e2e --runInBand",
     "test:unit": "jest test/unit",
     "test:e2e:internal": "jest test/e2e --runInBand",
     "test:e2e": "USE_EXTERNAL_CLICKHOUSE=true jest test/e2e --runInBand",
