@@ -1,20 +1,45 @@
 # ClickHouse Toolkit
 
-A comprehensive TypeScript ORM and toolkit for [ClickHouse](https://clickhouse.com/) databases. This library provides decorator-based schema definitions, automatic schema synchronization, migrations, and a fluent query builder API.
+A safety-first, composable TypeScript toolkit for building safe, ergonomic ClickHouse queries and migrations.
+
+[![npm version](https://img.shields.io/npm/v/clickhouse-toolkit.svg)](https://www.npmjs.com/package/clickhouse-toolkit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Query Builder](#query-builder)
+  - [SELECT Queries](#select-queries)
+  - [INSERT Queries](#insert-queries)
+  - [UPDATE Queries](#update-queries)
+  - [DELETE Queries](#delete-queries)
+  - [Operators and Predicates](#operators-and-predicates)
+  - [Joins](#joins)
+  - [Aggregations](#aggregations)
+  - [Subqueries](#subqueries)
+  - [ClickHouse-Specific Features](#clickhouse-specific-features)
+- [Streaming](#streaming)
+- [Migrations](#migrations)
+  - [CLI Usage](#cli-usage)
+  - [Programmatic Usage](#programmatic-usage)
+  - [Migration Files](#migration-files)
+- [Configuration](#configuration)
+- [API Reference](#api-reference)
+- [Examples](#examples)
+- [License](#license)
 
 ## Features
 
-- **Decorator-based Schema Definition:** Define tables and columns using TypeScript decorators
-- **Automatic Schema Synchronization:** Keep your database schema in sync with your TypeScript models
-- **Migration System:** Version-controlled database schema changes
-- **Fluent Query Builder:** Chain methods for building complex SQL queries
-- **Materialized Views:** Support for ClickHouse materialized views
-- **CLI Tool:** Command-line interface for running migrations
-- **Type Safety:** Full TypeScript support with type inference
+- **Fluent Query Builder** - Chain methods for building complex SQL queries with full type safety
+- **ClickHouse-Aware** - Built specifically for ClickHouse with support for FINAL, PREWHERE, arrays, maps, and more
+- **Advanced Migrator** - Version-controlled migrations with drift detection, ON CLUSTER support, and dry-run capabilities
+- **Streaming Support** - Built-in support for streaming large result sets with JSONEachRow and CSV formats
+- **CLI Tool** - Command-line interface for running migrations and schema management
+- **Type Safety** - Full TypeScript support with type inference and compile-time safety
 
 ## Installation
-
-Install the package via npm:
 
 ```bash
 npm install clickhouse-toolkit
@@ -22,322 +47,767 @@ npm install clickhouse-toolkit
 
 ## Quick Start
 
-### 1. Define Your Schema
-
 ```typescript
-import { Schema } from 'clickhouse-toolkit'
-import { Column } from 'clickhouse-toolkit'
+import { select, createQueryRunner, Eq, Gt } from 'clickhouse-toolkit'
 
-@Schema({ engine: 'MergeTree' })
-export class User {
-  @Column({ type: 'UUID', primary: true })
-  id: string
-
-  @Column({ type: 'String' })
-  name: string
-
-  @Column({ type: 'DateTime', orderBy: true })
-  createdAt: string
-
-  @Column({ type: 'UInt32' })
-  age: number
-}
-```
-
-### 2. Initialize Connection
-
-```typescript
-import { Connection } from 'clickhouse-toolkit'
-
-const connection = await Connection.initialize({
+// Create a query runner
+const runner = createQueryRunner({
   url: 'http://localhost:8123',
   username: 'default',
   password: '',
-  database: 'my_database',
-  schemas: [User], // Register your schema classes
-  logging: true
-})
-```
-
-### 3. Synchronize Schema
-
-```typescript
-const schemaBuilder = connection.createSchemaBuilder()
-await schemaBuilder.synchronize() // Creates/updates tables based on your schemas
-```
-
-### 4. Query Your Data
-
-```typescript
-// Simple query
-const users = await connection
-  .createQueryBuilder()
-  .select(['id', 'name', 'age'])
-  .from('user')
-  .where('age > :age', { age: 18 })
-  .execute<User>()
-
-// Complex query with joins
-const userOrders = await connection
-  .createQueryBuilder()
-  .select(['u.name', 'o.order_id', 'o.total'])
-  .from('user', 'u')
-  .innerJoin('order', 'o', 'u.id = o.user_id')
-  .where('o.total > :total', { total: 100 })
-  .execute<{ name: string; order_id: string; total: number }>()
-```
-
-## Schema Definition
-
-### Table Decorators
-
-```typescript
-@Schema({ engine: 'MergeTree' })
-export class MyTable {
-  // columns...
-}
-
-// With custom table name
-@Schema({ name: 'custom_table_name', engine: 'MergeTree' })
-export class MyTable {
-  // columns...
-}
-```
-
-### Column Decorators
-
-```typescript
-export class Example {
-  @Column({ type: 'String', primary: true })
-  id: string
-
-  @Column({ type: 'DateTime' })
-  timestamp: string
-
-  @Column({ type: 'Array(Int32)' })
-  numbers: number[]
-
-  @Column({ type: 'Nullable(String)' })
-  optionalField?: string
-}
-```
-
-### Materialized Views
-
-```typescript
-@Schema({ engine: 'MergeTree' })
-export class UserStatsStorage {
-  @Column({ type: 'String' })
-  userId: string
-
-  @Column({ type: 'UInt32' })
-  orderCount: number
-}
-
-@Schema({
-  materialized: true,
-  materializedQuery: (qb) => 
-    qb.select(['user_id', 'COUNT(*) as order_count'])
-      .from('orders')
-      .groupBy('user_id'),
-  materializedTo: 'user_stats_storage'
-})
-export class UserStats {}
-```
-
-## Migrations
-
-### Creating Migrations
-
-Create migration files in your migrations directory:
-
-```typescript
-// migrations/create_users_table.ts
-import { QueryRunner } from 'clickhouse-toolkit'
-import { Table } from 'clickhouse-toolkit'
-
-export function up(queryRunner: QueryRunner) {
-  return queryRunner.createTable(
-    new Table({
-      name: 'users',
-      columns: [
-        { name: 'id', type: 'UInt32', primary: true },
-        { name: 'name', type: 'String' },
-        { name: 'email', type: 'String' }
-      ],
-      engine: 'MergeTree'
-    }),
-    true
-  )
-}
-
-export function down(queryRunner: QueryRunner) {
-  return queryRunner.dropTable('users', true)
-}
-```
-
-### Running Migrations
-
-#### Programmatically
-
-```typescript
-const connection = await Connection.initialize({
-  // ... connection options
-  migrations: ['migrations/*'] // Path to migration files
+  database: 'my_database'
 })
 
-await connection.migrator.init()
-await connection.migrator.up() // Apply pending migrations
-await connection.migrator.down(1) // Rollback last migration
-await connection.migrator.status() // Show migration status
-```
+// Build and execute a query
+const users = await select(['id', 'name', 'email', 'age'])
+  .from('users')
+  .where({
+    age: Gt(18),
+    status: Eq('active')
+  })
+  .orderBy([{ column: 'created_at', direction: 'DESC' }])
+  .limit(10)
+  .run(runner)
 
-#### Using CLI
-
-```bash
-# Set environment variables
-export CLICKHOUSE_URL="http://localhost:8123"
-export CLICKHOUSE_USERNAME="default"
-export CLICKHOUSE_PASSWORD=""
-export CLICKHOUSE_DATABASE="my_database"
-export CLICKHOUSE_MIGRATIONS="migrations/*"
-
-# Run migrations
-npx clickhouse-toolkit up
-npx clickhouse-toolkit down 1
-npx clickhouse-toolkit status
+console.log(users)
 ```
 
 ## Query Builder
 
-### Parameter Type Handling
+### SELECT Queries
 
-The library automatically handles ClickHouse parameter type casting based on your schema definitions. When you use parameters in your queries, the library looks up the column type from your schema and applies the appropriate type casting automatically.
-
-**Usage:**
-```typescript
-// The library automatically casts parameters based on your schema
-.where('age >= :age', { age: 18 })        // Uses column type from schema
-.where('total > :total', { total: 100.50 }) // Uses column type from schema
-.where('name LIKE :name', { name: '%john%' }) // Uses column type from schema
-```
-
-### Select Queries
+Build SELECT queries with a fluent, type-safe API:
 
 ```typescript
-const queryBuilder = connection.createQueryBuilder()
+import { select, Eq, In, Between, Like, IsNotNull } from 'clickhouse-toolkit'
 
-// Basic select
-const results = await queryBuilder
-  .select(['id', 'name'])
+// Simple SELECT
+const users = await select(['id', 'name', 'email'])
   .from('users')
-  .execute<User>()
+  .run(runner)
 
-// With conditions
-const adults = await queryBuilder
-  .select(['id', 'name', 'age'])
-  .from('users')
-  .where('age >= :age', { age: 18 })
-  .execute<User>()
-
-// With joins
-const userOrders = await queryBuilder
-  .select(['u.name', 'o.order_id'])
+// SELECT with aliases
+const results = await select(['u.id', 'u.name'])
   .from('users', 'u')
-  .innerJoin('orders', 'o', 'u.id = o.user_id')
-  .where('o.total > :total', { total: 100 })
-  .execute<{ name: string; order_id: string }>()
+  .run(runner)
+
+// SELECT with WHERE
+const activeUsers = await select(['*'])
+  .from('users')
+  .where({
+    status: Eq('active'),
+    age: Between(18, 65),
+    country: In(['US', 'CA', 'UK']),
+    name: Like('%John%'),
+    email: IsNotNull()
+  })
+  .run(runner)
+
+// SELECT with ORDER BY and LIMIT
+const recentUsers = await select(['id', 'name', 'created_at'])
+  .from('users')
+  .orderBy([
+    { column: 'created_at', direction: 'DESC' },
+    { column: 'id', direction: 'ASC' }
+  ])
+  .limit(20)
+  .run(runner)
+
+// Object notation with aliases
+const results = await select({
+  userId: 'id',
+  userName: 'name',
+  userEmail: 'email'
+})
+  .from('users')
+  .run(runner)
 ```
 
-### Insert Queries
+### INSERT Queries
+
+Insert data safely with automatic value formatting:
 
 ```typescript
-// Insert single record
-await connection.insert(
-  { id: '1', name: 'John', age: 25 },
-  'users'
+import { insertInto } from 'clickhouse-toolkit'
+
+// Insert single row
+await insertInto('users')
+  .columns(['id', 'name', 'email', 'age'])
+  .values([[1, 'John Doe', 'john@example.com', 30]])
+  .run(runner)
+
+// Insert multiple rows
+await insertInto('users')
+  .columns(['id', 'name', 'email', 'age'])
+  .values([
+    [1, 'John Doe', 'john@example.com', 30],
+    [2, 'Jane Smith', 'jane@example.com', 25],
+    [3, 'Bob Johnson', 'bob@example.com', 35]
+  ])
+  .run(runner)
+
+// Insert with complex data types
+await insertInto('users')
+  .columns(['id', 'name', 'tags', 'metadata', 'created_at'])
+  .values([[
+    1,
+    'John Doe',
+    ['admin', 'developer'],                    // Array
+    { department: 'Engineering', level: 'Senior' },  // Map
+    new Date('2024-01-15T10:30:00Z')           // DateTime
+  ]])
+  .run(runner)
+```
+
+### UPDATE Queries
+
+**Note:** ClickHouse UPDATE operations are asynchronous mutations that process in the background.
+
+```typescript
+import { update, Eq, Gt, In } from 'clickhouse-toolkit'
+
+// Update single column
+await update('users')
+  .set({ status: 'inactive' })
+  .where({ id: Eq(1) })
+  .run(runner)
+
+// Update multiple columns
+await update('users')
+  .set({
+    status: 'promoted',
+    salary: 75000.00
+  })
+  .where({ id: Eq(2) })
+  .run(runner)
+
+// Update with complex conditions
+await update('users')
+  .set({ status: 'verified' })
+  .where({
+    age: Gt(18),
+    country: In(['US', 'CA'])
+  })
+  .run(runner)
+
+// Update with NULL
+await update('users')
+  .set({ middle_name: null })
+  .where({ id: Eq(3) })
+  .run(runner)
+```
+
+### DELETE Queries
+
+**Note:** ClickHouse DELETE operations are asynchronous mutations that process in the background.
+
+```typescript
+import { deleteFrom, Eq, Gt, Between } from 'clickhouse-toolkit'
+
+// Delete single row
+await deleteFrom('users')
+  .where({ id: Eq(1) })
+  .run(runner)
+
+// Delete with complex conditions
+await deleteFrom('users')
+  .where({
+    status: Eq('inactive'),
+    last_login: Lt(new Date('2023-01-01'))
+  })
+  .run(runner)
+
+// Delete with range
+await deleteFrom('users')
+  .where({ age: Between(60, 100) })
+  .run(runner)
+```
+
+### Operators and Predicates
+
+Available operators for building WHERE clauses:
+
+```typescript
+import { 
+  Eq, Neq, Gt, Gte, Lt, Lte,     // Comparison
+  In, NotIn,                       // Membership
+  Between,                         // Range
+  Like, ILike,                     // Pattern matching
+  IsNull, IsNotNull,               // NULL checks
+  And, Or, Not,                    // Logical combinators
+  EqCol                            // Column comparison
+} from 'clickhouse-toolkit'
+
+// Comparison operators
+where({ age: Eq(25) })
+where({ age: Gt(18) })
+where({ age: Gte(21) })
+where({ age: Lt(65) })
+where({ age: Lte(60) })
+where({ status: Neq('deleted') })
+
+// Membership
+where({ country: In(['US', 'CA', 'UK']) })
+where({ role: NotIn(['guest', 'anonymous']) })
+
+// Range
+where({ age: Between(18, 65) })
+
+// Pattern matching
+where({ name: Like('%John%') })
+where({ email: ILike('%@gmail.com') })  // Case-insensitive
+
+// NULL checks
+where({ deleted_at: IsNull() })
+where({ email: IsNotNull() })
+
+// Logical combinators
+where({
+  age: And(Gte(18), Lt(65)),
+  status: Or(Eq('active'), Eq('pending'))
+})
+
+where({
+  status: Not(Eq('deleted'))
+})
+
+// Column comparison (for JOINs)
+.innerJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
+```
+
+### Joins
+
+Build JOIN queries with type-safe conditions:
+
+```typescript
+import { select, EqCol } from 'clickhouse-toolkit'
+
+// INNER JOIN
+const results = await select(['u.id', 'u.name', 'o.product_name', 'o.amount'])
+  .from('users', 'u')
+  .innerJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
+  .run(runner)
+
+// LEFT JOIN
+const results = await select(['u.id', 'u.name', 'o.product_name'])
+  .from('users', 'u')
+  .leftJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
+  .run(runner)
+
+// Multiple JOINs
+const results = await select(['u.name', 'o.product_name', 'p.price'])
+  .from('users', 'u')
+  .innerJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
+  .innerJoin('products', { 'p.name': EqCol('o.product_name') }, 'p')
+  .run(runner)
+
+// RIGHT JOIN
+const results = await select(['*'])
+  .from('users', 'u')
+  .rightJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
+  .run(runner)
+
+// FULL JOIN
+const results = await select(['*'])
+  .from('users', 'u')
+  .fullJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
+  .run(runner)
+```
+
+### Aggregations
+
+Perform aggregations with GROUP BY and HAVING:
+
+```typescript
+import { select, Count, Sum, Avg, Min, Max, Gt } from 'clickhouse-toolkit'
+
+// Simple aggregation
+const results = await select({
+  country: 'country',
+  userCount: Count()
+})
+  .from('users')
+  .groupBy(['country'])
+  .run(runner)
+
+// Multiple aggregations
+const results = await select({
+  userId: 'user_id',
+  totalAmount: Sum('amount'),
+  avgAmount: Avg('amount'),
+  minAmount: Min('amount'),
+  maxAmount: Max('amount'),
+  orderCount: Count()
+})
+  .from('orders')
+  .groupBy(['user_id'])
+  .run(runner)
+
+// With HAVING clause
+const results = await select(['user_id', 'sum(amount) as total'])
+  .from('orders')
+  .groupBy(['user_id'])
+  .having({ total: Gt(1000) })
+  .run(runner)
+```
+
+### Subqueries
+
+Use subqueries in WHERE clauses and SELECT lists:
+
+```typescript
+import { select, In, Gt, Eq } from 'clickhouse-toolkit'
+
+// Subquery in WHERE with IN
+const userIdsWithOrders = select(['user_id']).from('orders')
+
+const users = await select(['id', 'name'])
+  .from('users')
+  .where({ id: In(userIdsWithOrders) })
+  .run(runner)
+
+// Subquery with comparison operators
+const avgAge = select(['avg(age)']).from('users')
+
+const olderUsers = await select(['id', 'name', 'age'])
+  .from('users')
+  .where({ age: Gt(avgAge) })
+  .run(runner)
+
+// Scalar subquery in SELECT (non-correlated)
+const results = await select({
+  id: 'id',
+  name: 'name',
+  avgAge: select(['avg(age)']).from('users')
+})
+  .from('users')
+  .limit(10)
+  .run(runner)
+```
+
+**Note:** Correlated subqueries are not supported due to ClickHouse limitations with the experimental feature.
+
+### ClickHouse-Specific Features
+
+Take advantage of ClickHouse-specific optimizations:
+
+```typescript
+import { select } from 'clickhouse-toolkit'
+
+// Use FINAL modifier for ReplacingMergeTree
+const results = await select(['id', 'name'])
+  .from('users')
+  .final()
+  .run(runner)
+
+// Use PREWHERE for optimization
+const results = await select(['*'])
+  .from('events')
+  .prewhere({ event_type: Eq('click') })
+  .where({ user_id: Eq(123) })
+  .run(runner)
+
+// Apply query settings
+const results = await select(['id', 'name'])
+  .from('users')
+  .settings({
+    max_execution_time: 30,
+    max_threads: 4,
+    max_memory_usage: 10000000000
+  })
+  .run(runner)
+```
+
+## Streaming
+
+Stream large datasets efficiently with format options:
+
+```typescript
+import { select } from 'clickhouse-toolkit'
+
+// Stream with default JSONEachRow format
+const stream = await select(['id', 'name', 'email'])
+  .from('users')
+  .stream(runner)
+
+const results: any[] = []
+stream.on('data', (rows: any[]) => {
+  results.push(...rows)
+})
+
+stream.on('end', () => {
+  console.log(`Processed ${results.length} rows`)
+})
+
+stream.on('error', (error) => {
+  console.error('Stream error:', error)
+})
+
+// Stream with explicit format
+const stream = await select(['id', 'name', 'email'])
+  .from('users')
+  .stream(runner, 'JSONEachRow')
+
+// Stream with filters and settings
+const stream = await select(['id', 'name', 'created_at'])
+  .from('users')
+  .where({ status: Eq('active') })
+  .settings({ max_execution_time: 60 })
+  .stream(runner)
+```
+
+## Migrations
+
+### CLI Usage
+
+The toolkit includes a CLI for managing migrations:
+
+#### Installation
+
+```bash
+# Install globally
+npm install -g clickhouse-toolkit
+
+# Or use with npx
+npx clickhouse-toolkit
+```
+
+#### Configuration
+
+Set environment variables:
+
+```bash
+export CLICKHOUSE_URL="http://localhost:8123"
+export CLICKHOUSE_USERNAME="default"
+export CLICKHOUSE_PASSWORD=""
+export CLICKHOUSE_DATABASE="my_database"
+export CLICKHOUSE_MIGRATIONS_TABLE_NAME="migrations"  # optional
+```
+
+#### Commands
+
+```bash
+# Show migration status
+clickhouse-toolkit migrate:status
+
+# Show migration plan (dry-run)
+clickhouse-toolkit migrate:plan
+
+# Apply pending migrations
+clickhouse-toolkit migrate:up
+
+# Rollback last migration
+clickhouse-toolkit migrate:down
+
+# Rollback 3 migrations
+clickhouse-toolkit migrate:down 3
+```
+
+### Programmatic Usage
+
+Use migrations in your code:
+
+```typescript
+import { Migrator, SimpleMigration, createQueryRunner } from 'clickhouse-toolkit'
+
+const runner = createQueryRunner({
+  url: 'http://localhost:8123',
+  username: 'default',
+  password: '',
+  database: 'my_database'
+})
+
+const migrator = new Migrator(runner, {
+  migrationsTableName: 'migrations',
+  migrationsPath: './migrations',
+  migrationsPattern: '*.sql'
+})
+
+// Initialize
+await migrator.init()
+
+// Check status
+const status = await migrator.status()
+console.log(status)
+
+// Apply migrations
+await migrator.up()
+
+// Rollback migrations
+await migrator.down(1)
+
+// Get migration plan
+const plan = await migrator.plan()
+plan.print()
+```
+
+### Migration Files
+
+#### SQL Migrations
+
+Create SQL migration files in the `migrations` directory:
+
+**migrations/001_create_users.sql:**
+```sql
+-- up
+CREATE TABLE users (
+  id UInt32,
+  name String,
+  email String,
+  age UInt8,
+  created_at DateTime DEFAULT now()
+) ENGINE = MergeTree()
+ORDER BY id;
+
+-- down
+DROP TABLE users;
+```
+
+#### Class-based Migrations
+
+Create programmatic migrations:
+
+```typescript
+import { SimpleMigration } from 'clickhouse-toolkit'
+
+const createUsersTable = new SimpleMigration(
+  '001_create_users',
+  'Create users table',
+  `CREATE TABLE users (
+    id UInt32,
+    name String,
+    email String
+  ) ENGINE = MergeTree() ORDER BY id`,
+  `DROP TABLE users`
 )
 
-// Insert multiple records
-await connection.insert([
-  { id: '1', name: 'John', age: 25 },
-  { id: '2', name: 'Jane', age: 30 }
-], 'users')
-```
-
-### Update Queries
-
-```typescript
-await connection
-  .createQueryBuilder()
-  .update('users')
-  .set({ age: 26 })
-  .where('id = :id', { id: '1' })
-  .execute()
-```
-
-### Delete Queries
-
-```typescript
-await connection
-  .createQueryBuilder()
-  .delete()
-  .from('users')
-  .where('age < :age', { age: 18 })
-  .execute()
-```
-
-## Schema Management
-
-### Synchronization
-
-```typescript
-const schemaBuilder = connection.createSchemaBuilder()
-
-// Full synchronization (creates, updates, drops tables)
-await schemaBuilder.synchronize()
-
-// Individual operations
-await schemaBuilder.createTable(metadata)
-await schemaBuilder.updateTable(metadata)
-await schemaBuilder.dropTable('table_name')
-```
-
-### Schema Inspection
-
-```typescript
-// Get all tables
-const tables = await schemaBuilder.getTables()
-
-// Get columns for a table
-const columns = await schemaBuilder.getColumns()
+const migrator = new Migrator(runner, {
+  migrationClasses: [createUsersTable]
+})
 ```
 
 ## Configuration
 
-### Connection Options
+### QueryRunner Options
 
 ```typescript
-const connection = await Connection.initialize({
-  url: 'http://localhost:8123',
-  username: 'default',
-  password: '',
-  database: 'my_database',
-  schemas: [User, Order], // Your schema classes
-  migrations: ['migrations/*'], // Migration file patterns
-  migrationsTableName: 'clickhouse_toolkit_migrations',
-  logging: true, // Enable SQL query logging
-  settings: {
-    // ClickHouse settings
-    max_execution_time: 60
-  }
+interface QueryRunnerConfig {
+  url: string              // ClickHouse HTTP URL
+  username: string         // Username
+  password: string         // Password
+  database: string         // Database name
+  timeout?: number         // Request timeout in ms (default: 30000)
+  retries?: number         // Number of retries (default: 3)
+  settings?: Record<string, any>  // Default ClickHouse settings
+}
+```
+
+### Migrator Options
+
+```typescript
+interface MigratorOptions {
+  migrationsTableName?: string      // Default: 'clickhouse_toolkit_migrations'
+  migrationsPath?: string           // Default: './migrations'
+  migrationsPattern?: string        // Default: '*.sql'
+  tsMigrationsPath?: string         // Default: './migrations'
+  tsMigrationsPattern?: string      // Default: '*.ts'
+  migrationClasses?: Migration[]    // Programmatic migrations
+  cluster?: string | null           // Cluster name for ON CLUSTER
+  allowMutations?: boolean          // Allow mutations (default: false)
+  dryRun?: boolean                  // Dry run mode (default: false)
+}
+```
+
+## API Reference
+
+### Query Builders
+
+- `select(columns?: string[] | Record<string, string | SelectBuilder>)` - Create SELECT query
+- `insertInto(table: string)` - Create INSERT query
+- `update(table: string)` - Create UPDATE query
+- `deleteFrom(table: string)` - Create DELETE query
+
+### Operators
+
+- `Eq(value)` - Equal to
+- `Neq(value)` - Not equal to
+- `Gt(value)` - Greater than
+- `Gte(value)` - Greater than or equal
+- `Lt(value)` - Less than
+- `Lte(value)` - Less than or equal
+- `In(values)` - IN clause
+- `NotIn(values)` - NOT IN clause
+- `Between(start, end)` - BETWEEN clause
+- `Like(pattern)` - LIKE pattern
+- `ILike(pattern)` - Case-insensitive LIKE
+- `IsNull()` - IS NULL
+- `IsNotNull()` - IS NOT NULL
+- `And(...conditions)` - AND combinator
+- `Or(...conditions)` - OR combinator
+- `Not(condition)` - NOT operator
+- `EqCol(column)` - Column equality (for JOINs)
+
+### Aggregation Functions
+
+- `Count(column?)` - COUNT aggregate
+- `Sum(column)` - SUM aggregate
+- `Avg(column)` - AVG aggregate
+- `Min(column)` - MIN aggregate
+- `Max(column)` - MAX aggregate
+
+### ClickHouse Functions
+
+- `arrayElement(arr, index)` - Access array element
+- `arrayLength(arr)` - Get array length
+- `arrayConcat(arr1, arr2)` - Concatenate arrays
+- `now()` - Current timestamp
+- `today()` - Current date
+- `toDate(value)` - Convert to date
+- `formatDateTime(date, format)` - Format datetime
+
+And many more! See the source code for complete function list.
+
+## Examples
+
+### Complex Query with Everything
+
+```typescript
+import { select, Eq, Gt, In, Between, And, Count, Sum } from 'clickhouse-toolkit'
+
+const report = await select({
+  country: 'u.country',
+  userCount: Count(),
+  totalRevenue: Sum('o.amount'),
+  avgOrderValue: select(['avg(amount)']).from('orders')
+})
+  .from('users', 'u')
+  .innerJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
+  .where({
+    'o.status': Eq('completed'),
+    'u.age': Between(18, 65),
+    'u.country': In(['US', 'CA', 'UK'])
+  })
+  .groupBy(['u.country'])
+  .having({ totalRevenue: Gt(10000) })
+  .orderBy([{ column: 'totalRevenue', direction: 'DESC' }])
+  .limit(10)
+  .settings({
+    max_execution_time: 30,
+    max_threads: 4
+  })
+  .run(runner)
+```
+
+### Complete Migration Workflow
+
+```typescript
+import { Migrator, SimpleMigration, createQueryRunner } from 'clickhouse-toolkit'
+
+const runner = createQueryRunner({
+  url: process.env.CLICKHOUSE_URL,
+  username: process.env.CLICKHOUSE_USERNAME,
+  password: process.env.CLICKHOUSE_PASSWORD,
+  database: process.env.CLICKHOUSE_DATABASE
+})
+
+// Create migrations
+const migrations = [
+  new SimpleMigration(
+    '001_create_users',
+    'Create users table',
+    `CREATE TABLE users (
+      id UInt32,
+      name String,
+      email String
+    ) ENGINE = MergeTree() ORDER BY id`,
+    `DROP TABLE users`
+  ),
+  new SimpleMigration(
+    '002_create_orders',
+    'Create orders table',
+    `CREATE TABLE orders (
+      id UInt32,
+      user_id UInt32,
+      amount Decimal(10, 2)
+    ) ENGINE = MergeTree() ORDER BY id`,
+    `DROP TABLE orders`
+  )
+]
+
+const migrator = new Migrator(runner, {
+  migrationClasses: migrations,
+  migrationsPath: './migrations'
+})
+
+// Initialize and run
+await migrator.init()
+await migrator.up()
+
+// Check status
+const status = await migrator.status()
+console.log(status)
+```
+
+### Streaming Large Datasets
+
+```typescript
+import { select } from 'clickhouse-toolkit'
+
+// Stream millions of rows efficiently
+const stream = await select(['id', 'event_type', 'timestamp', 'data'])
+  .from('events')
+  .where({ event_type: Eq('click') })
+  .orderBy([{ column: 'timestamp', direction: 'DESC' }])
+  .settings({ max_execution_time: 300 })
+  .stream(runner)
+
+let processedCount = 0
+
+stream.on('data', (rows: any[]) => {
+  rows.forEach(row => {
+    // Process each row
+    console.log(`Processing event ${row.id}`)
+    processedCount++
+  })
+})
+
+stream.on('end', () => {
+  console.log(`Processed ${processedCount} events`)
+})
+
+stream.on('error', (error) => {
+  console.error('Stream error:', error)
 })
 ```
 
+## Data Type Support
+
+ClickHouse Toolkit automatically handles formatting for various data types:
+
+- **Primitives:** String, Number, Boolean, NULL
+- **Dates:** Date objects → ClickHouse DateTime format
+- **Arrays:** JavaScript arrays → ClickHouse Array syntax `[...]`
+- **Maps:** Plain objects → ClickHouse Map syntax `{'key': 'value'}`
+- **Special Numbers:** Infinity, -Infinity, NaN
+
+## Limitations
+
+### Known Limitations
+
+1. **Correlated Subqueries** - Not supported due to ClickHouse experimental feature limitations
+2. **SQL Expressions in UPDATE** - Only literal values supported in SET clause (no `salary * 1.1`)
+3. **Async Mutations** - UPDATE and DELETE are async in ClickHouse; immediate verification may not show changes
+4. **Date Objects in UPDATE** - Use string literals or raw SQL for complex datetime expressions
+
 ## Contributing
 
-Contributions, issues, and feature requests are welcome! Feel free to open a pull request or submit an issue.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License
+
+## Repository
+
+[https://github.com/rock-n-rollangel/clickhouse-toolkit](https://github.com/rock-n-rollangel/clickhouse-toolkit)
+
