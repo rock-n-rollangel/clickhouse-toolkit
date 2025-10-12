@@ -1,6 +1,6 @@
 {
   "name": "clickhouse-toolkit",
-  "version": "1.2.2",
+  "version": "2.0.0",
   "description": "A customizable SQL query builder for ClickHouse databases.",
   "license": "MIT",
   "author": {
@@ -19,12 +19,15 @@
     "node": ">=16"
   },
   "bin": {
-    "clickhouse-toolkit": "./cli.js"
+    "clickhouse-toolkit": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
-    "test": "jest",
+    "test": "jest test/unit && jest test/e2e --runInBand",
+    "test:unit": "jest test/unit",
+    "test:e2e:internal": "jest test/e2e --runInBand",
+    "test:e2e": "USE_EXTERNAL_CLICKHOUSE=true jest test/e2e --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint 'src/**/*.{ts,js}'",
