@@ -94,6 +94,7 @@ export interface SelectNode {
   offset?: number
   final?: boolean
   settings?: Record<string, any>
+  format?: string
 }
 
 export interface InsertNode {

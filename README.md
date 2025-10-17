@@ -35,7 +35,8 @@ A safety-first, composable TypeScript toolkit for building safe, ergonomic Click
 - **Fluent Query Builder** - Chain methods for building complex SQL queries with full type safety
 - **ClickHouse-Aware** - Built specifically for ClickHouse with support for FINAL, PREWHERE, arrays, maps, and more
 - **Advanced Migrator** - Version-controlled migrations with drift detection, ON CLUSTER support, and dry-run capabilities
-- **Streaming Support** - Built-in support for streaming large result sets with JSONEachRow and CSV formats
+- **Multiple Insert Strategies** - Traditional SQL inserts, object-based inserts, and stream-based inserts for maximum flexibility
+- **Streaming Support** - Built-in support for streaming large result sets with format validation and multiple formats
 - **CLI Tool** - Command-line interface for running migrations and schema management
 - **Type Safety** - Full TypeScript support with type inference and compile-time safety
 
@@ -125,7 +126,9 @@ const results = await select({
 
 ### INSERT Queries
 
-Insert data safely with automatic value formatting:
+Insert data safely with multiple strategies and automatic value formatting:
+
+#### Traditional Value-Based Inserts
 
 ```typescript
 import { insertInto } from 'clickhouse-toolkit'
@@ -156,6 +159,74 @@ await insertInto('users')
     { department: 'Engineering', level: 'Senior' },  // Map
     new Date('2024-01-15T10:30:00Z')           // DateTime
   ]])
+  .run(runner)
+```
+
+#### Object-Based Inserts
+
+Insert JavaScript objects directly using ClickHouse client's native insert method:
+
+```typescript
+import { insertInto } from 'clickhouse-toolkit'
+
+// Insert single object
+await insertInto('users')
+  .objects([{ 
+    id: 1, 
+    name: 'John Doe', 
+    email: 'john@example.com', 
+    age: 30 
+  }])
+  .format('JSONEachRow')
+  .run(runner)
+
+// Insert multiple objects
+await insertInto('users')
+  .objects([
+    { id: 1, name: 'John Doe', email: 'john@example.com', age: 30 },
+    { id: 2, name: 'Jane Smith', email: 'jane@example.com', age: 25 },
+    { id: 3, name: 'Bob Johnson', email: 'bob@example.com', age: 35 }
+  ])
+  .format('JSONEachRow')
+  .run(runner)
+```
+
+#### Stream-Based Inserts
+
+Insert data from Node.js streams for large datasets:
+
+```typescript
+import { insertInto } from 'clickhouse-toolkit'
+import { Readable } from 'stream'
+
+// Insert from CSV stream
+const csvData = '1,John Doe,john@example.com,30\n2,Jane Smith,jane@example.com,25'
+const csvStream = Readable.from([csvData], { objectMode: false })
+
+await insertInto('users')
+  .fromStream(csvStream)
+  .format('CSV')
+  .run(runner)
+
+// Insert from JSONEachRow stream
+const jsonData = [
+  { id: 1, name: 'John', email: 'john@example.com' },
+  { id: 2, name: 'Jane', email: 'jane@example.com' }
+]
+const jsonStream = Readable.from(jsonData, { objectMode: true })
+
+await insertInto('users')
+  .fromStream(jsonStream)
+  .format('JSONEachRow')
+  .run(runner)
+
+// Insert large dataset efficiently
+const largeDataset = generateLargeDataset() // Your data generator
+const dataStream = Readable.from(largeDataset, { objectMode: false })
+
+await insertInto('events')
+  .fromStream(dataStream)
+  .format('JSONEachRow')
   .run(runner)
 ```
 
@@ -420,7 +491,7 @@ const results = await select(['id', 'name'])
 
 ## Streaming
 
-Stream large datasets efficiently with format options:
+Stream large datasets efficiently with format options and validation:
 
 ```typescript
 import { select } from 'clickhouse-toolkit'
@@ -443,17 +514,69 @@ stream.on('error', (error) => {
   console.error('Stream error:', error)
 })
 
-// Stream with explicit format
+// Stream with explicit format using .format() method
 const stream = await select(['id', 'name', 'email'])
   .from('users')
-  .stream(runner, 'JSONEachRow')
+  .format('JSONEachRow')
+  .stream(runner)
+
+// Stream with CSV format
+const csvStream = await select(['id', 'name', 'email'])
+  .from('users')
+  .format('CSV')
+  .stream(runner)
+
+// Stream with TabSeparated format
+const tsvStream = await select(['id', 'name', 'email'])
+  .from('users')
+  .format('TabSeparated')
+  .stream(runner)
 
 // Stream with filters and settings
 const stream = await select(['id', 'name', 'created_at'])
   .from('users')
   .where({ status: Eq('active') })
   .settings({ max_execution_time: 60 })
+  .format('JSONEachRow')
   .stream(runner)
+```
+
+### Supported Streaming Formats
+
+The following formats are supported for streaming operations:
+
+- **JSONEachRow** - One JSON object per line (default)
+- **JSONStringsEachRow** - JSON with string values
+- **JSONCompactEachRow** - Compact JSON format
+- **JSONCompactStringsEachRow** - Compact JSON with string values
+- **JSONCompactEachRowWithNames** - Compact JSON with column names
+- **JSONCompactEachRowWithNamesAndTypes** - Compact JSON with names and types
+- **JSONCompactStringsEachRowWithNames** - Compact JSON strings with names
+- **JSONCompactStringsEachRowWithNamesAndTypes** - Compact JSON strings with names and types
+- **CSV** - Comma-separated values
+- **CSVWithNames** - CSV with header row
+- **CSVWithNamesAndTypes** - CSV with header and types
+- **TabSeparated** - Tab-separated values
+- **TabSeparatedRaw** - Raw tab-separated values
+- **TabSeparatedWithNames** - Tab-separated with header
+- **TabSeparatedWithNamesAndTypes** - Tab-separated with header and types
+
+### Format Validation
+
+The toolkit automatically validates that only streamable formats are used with the `.stream()` method:
+
+```typescript
+// This works - JSONEachRow is streamable
+const stream = await select(['id', 'name'])
+  .from('users')
+  .format('JSONEachRow')
+  .stream(runner)
+
+// This throws an error - JSON is not streamable
+const stream = await select(['id', 'name'])
+  .from('users')
+  .format('JSON')
+  .stream(runner) // Throws: Format 'JSON' is not streamable
 ```
 
 ## Migrations
@@ -627,6 +750,24 @@ interface MigratorOptions {
 - `update(table: string)` - Create UPDATE query
 - `deleteFrom(table: string)` - Create DELETE query
 
+### InsertBuilder Methods
+
+- `.columns(cols: string[])` - Specify column names
+- `.values(vals: any[][])` - Insert using value arrays (traditional SQL)
+- `.value(row: any[])` - Add single row to values
+- `.objects(data: Array<Record<string, any>>)` - Insert JavaScript objects
+- `.fromStream(stream: NodeJS.ReadableStream)` - Insert from Node.js stream
+- `.format(fmt: DataFormat)` - Specify data format
+- `.run(runner?: QueryRunner)` - Execute the insert
+
+### SelectBuilder Methods
+
+- `.from(table: string, alias?: string)` - Specify source table
+- `.where(conditions: Record<string, any>)` - Add WHERE conditions
+- `.format(fmt: DataFormat)` - Specify output format
+- `.stream(runner?: QueryRunner)` - Create streaming query
+- `.run(runner?: QueryRunner)` - Execute query and return results
+
 ### Operators
 
 - `Eq(value)` - Equal to
@@ -759,6 +900,7 @@ const stream = await select(['id', 'event_type', 'timestamp', 'data'])
   .where({ event_type: Eq('click') })
   .orderBy([{ column: 'timestamp', direction: 'DESC' }])
   .settings({ max_execution_time: 300 })
+  .format('JSONEachRow')
   .stream(runner)
 
 let processedCount = 0
@@ -778,6 +920,71 @@ stream.on('end', () => {
 stream.on('error', (error) => {
   console.error('Stream error:', error)
 })
+```
+
+### Object-Based Data Insertion
+
+```typescript
+import { insertInto } from 'clickhouse-toolkit'
+
+// Insert user data as objects
+const users = [
+  { id: 1, name: 'John Doe', email: 'john@example.com', age: 30, active: true },
+  { id: 2, name: 'Jane Smith', email: 'jane@example.com', age: 25, active: true },
+  { id: 3, name: 'Bob Johnson', email: 'bob@example.com', age: 35, active: false }
+]
+
+await insertInto('users')
+  .objects(users)
+  .format('JSONEachRow')
+  .run(runner)
+
+// Insert complex nested data
+const events = [
+  {
+    id: 1,
+    user_id: 123,
+    event_type: 'click',
+    properties: { page: '/home', element: 'button' },
+    tags: ['web', 'mobile'],
+    timestamp: new Date('2024-01-15T10:30:00Z')
+  }
+]
+
+await insertInto('events')
+  .objects(events)
+  .format('JSONEachRow')
+  .run(runner)
+```
+
+### Stream-Based Data Insertion
+
+```typescript
+import { insertInto } from 'clickhouse-toolkit'
+import { Readable } from 'stream'
+
+// Insert from CSV file stream
+const csvData = '1,John Doe,john@example.com,30\n2,Jane Smith,jane@example.com,25'
+const csvStream = Readable.from([csvData], { objectMode: false })
+
+await insertInto('users')
+  .fromStream(csvStream)
+  .format('CSV')
+  .run(runner)
+
+// Insert large JSON dataset from stream
+const jsonData = [
+  { id: 1, name: 'User1', value: 100 },
+  { id: 2, name: 'User2', value: 200 },
+  { id: 3, name: 'User3', value: 300 }
+]
+
+const jsonStream = Readable.from(jsonData, { objectMode: true })
+
+await insertInto('large_dataset')
+  .fromStream(jsonStream)
+  .format('JSONEachRow')
+  .run(runner)
 ```
 
 ## Data Type Support

@@ -556,4 +556,246 @@ describe('InsertBuilder E2E Tests', () => {
       })
     })
   })
+
+  describe('Object-based Insert Operations', () => {
+    it('should insert single object with .objects() method', async () => {
+      // Create test table
+      await queryRunner.command({
+        sql: `
+          CREATE TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName} (
+            id UInt32,
+            name String,
+            email String,
+            age UInt8,
+            active UInt8
+          ) ENGINE = MergeTree() ORDER BY id
+        `,
+      })
+
+      // Insert single object
+      await insertInto(testTableName)
+        .objects([{ id: 1, name: 'John Doe', email: 'john@example.com', age: 30, active: 1 }])
+        .format('JSONEachRow')
+        .run(queryRunner)
+
+      // Verify insertion
+      const results = await select(['*']).from(testTableName).run(queryRunner)
+
+      expect(results).toHaveLength(1)
+      expect((results[0] as any).id).toBe(1)
+      expect((results[0] as any).name).toBe('John Doe')
+      expect((results[0] as any).email).toBe('john@example.com')
+      expect((results[0] as any).age).toBe(30)
+      expect((results[0] as any).active).toBe(1)
+
+      // Clean up
+      await queryRunner.command({
+        sql: `DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName}`,
+      })
+    })
+
+    it('should insert multiple objects with .objects() method', async () => {
+      // Create test table
+      await queryRunner.command({
+        sql: `
+          CREATE TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName} (
+            id UInt32,
+            name String,
+            email String,
+            age UInt8
+          ) ENGINE = MergeTree() ORDER BY id
+        `,
+      })
+
+      // Insert multiple objects
+      const testData = [
+        { id: 1, name: 'Alice Smith', email: 'alice@example.com', age: 25 },
+        { id: 2, name: 'Bob Johnson', email: 'bob@example.com', age: 30 },
+        { id: 3, name: 'Carol Brown', email: 'carol@example.com', age: 35 },
+      ]
+
+      await insertInto(testTableName).objects(testData).format('JSONEachRow').run(queryRunner)
+
+      // Verify insertion
+      const results = await select(['*']).from(testTableName).run(queryRunner)
+
+      expect(results).toHaveLength(3)
+      expect((results[0] as any).id).toBe(1)
+      expect((results[0] as any).name).toBe('Alice Smith')
+      expect((results[1] as any).id).toBe(2)
+      expect((results[1] as any).name).toBe('Bob Johnson')
+      expect((results[2] as any).id).toBe(3)
+      expect((results[2] as any).name).toBe('Carol Brown')
+
+      // Clean up
+      await queryRunner.command({
+        sql: `DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName}`,
+      })
+    })
+
+    it('should preserve data types with object inserts', async () => {
+      // Create test table with various data types
+      await queryRunner.command({
+        sql: `
+          CREATE TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName} (
+            id UInt32,
+            name String,
+            score Float64,
+            is_active UInt8,
+            created_date Date
+          ) ENGINE = MergeTree() ORDER BY id
+        `,
+      })
+
+      // Insert object with various data types
+      await insertInto(testTableName)
+        .objects([
+          {
+            id: 1,
+            name: 'Test User',
+            score: 95.5,
+            is_active: 1,
+            created_date: '2023-01-01',
+          },
+        ])
+        .format('JSONEachRow')
+        .run(queryRunner)
+
+      // Verify insertion with correct data types
+      const results = await select(['*']).from(testTableName).run(queryRunner)
+
+      expect(results).toHaveLength(1)
+      expect((results[0] as any).id).toBe(1)
+      expect((results[0] as any).name).toBe('Test User')
+      expect((results[0] as any).score).toBe(95.5)
+      expect((results[0] as any).is_active).toBe(1)
+      expect((results[0] as any).created_date).toBe('2023-01-01')
+
+      // Clean up
+      await queryRunner.command({
+        sql: `DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName}`,
+      })
+    })
+  })
+
+  describe('Stream-based Insert Operations', () => {
+    it('should insert data from CSV stream', async () => {
+      // Create test table
+      await queryRunner.command({
+        sql: `
+          CREATE TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName} (
+            id UInt32,
+            name String,
+            email String,
+            age UInt8
+          ) ENGINE = MergeTree() ORDER BY id
+        `,
+      })
+
+      // Create CSV stream
+      const { Readable } = await import('stream')
+      const csvData =
+        '1,John Doe,john@example.com,30\n2,Jane Smith,jane@example.com,25\n3,Bob Johnson,bob@example.com,35'
+      const csvStream = Readable.from([csvData], { objectMode: false })
+
+      // Insert from stream
+      await insertInto(testTableName).fromStream(csvStream).format('CSV').run(queryRunner)
+
+      // Verify insertion
+      const results = await select(['*']).from(testTableName).run(queryRunner)
+
+      expect(results).toHaveLength(3)
+      expect((results[0] as any).id).toBe(1)
+      expect((results[0] as any).name).toBe('John Doe')
+      expect((results[1] as any).id).toBe(2)
+      expect((results[1] as any).name).toBe('Jane Smith')
+      expect((results[2] as any).id).toBe(3)
+      expect((results[2] as any).name).toBe('Bob Johnson')
+
+      // Clean up
+      await queryRunner.command({
+        sql: `DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName}`,
+      })
+    })
+
+    it('should insert data from JSONEachRow stream with array of objects', async () => {
+      // Create test table
+      await queryRunner.command({
+        sql: `
+          CREATE TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName} (
+            id UInt32,
+            name String,
+            email String,
+            age UInt8
+          ) ENGINE = MergeTree() ORDER BY id
+        `,
+      })
+
+      // Create JSONEachRow stream with array of objects
+      const { Readable } = await import('stream')
+      const jsonData = [
+        { id: 1, name: 'Alice', email: 'alice@example.com', age: 28 },
+        { id: 2, name: 'Charlie', email: 'charlie@example.com', age: 32 },
+      ]
+      const jsonStream = Readable.from(jsonData, { objectMode: true })
+
+      // Insert from stream
+      await insertInto(testTableName).fromStream(jsonStream).format('JSONEachRow').run(queryRunner)
+
+      // Verify insertion
+      const results = await select(['*']).from(testTableName).run(queryRunner)
+
+      expect(results).toHaveLength(2)
+      expect((results[0] as any).id).toBe(1)
+      expect((results[0] as any).name).toBe('Alice')
+      expect((results[1] as any).id).toBe(2)
+      expect((results[1] as any).name).toBe('Charlie')
+
+      // Clean up
+      await queryRunner.command({
+        sql: `DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName}`,
+      })
+    })
+
+    it('should handle large dataset streaming', async () => {
+      // Create test table
+      await queryRunner.command({
+        sql: `
+          CREATE TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName} (
+            id UInt32,
+            name String,
+            value UInt32
+          ) ENGINE = MergeTree() ORDER BY id
+        `,
+      })
+
+      // Create large CSV stream (100 rows)
+      const { Readable } = await import('stream')
+      const csvLines = []
+      for (let i = 1; i <= 100; i++) {
+        csvLines.push(`${i},User${i},${i * 10}`)
+      }
+      const csvData = csvLines.join('\n')
+      const csvStream = Readable.from([csvData], { objectMode: false })
+
+      // Insert from stream
+      await insertInto(testTableName).fromStream(csvStream).format('CSV').run(queryRunner)
+
+      // Verify insertion
+      const results = await select(['*']).from(testTableName).run(queryRunner)
+
+      expect(results).toHaveLength(100)
+      expect((results[0] as any).id).toBe(1)
+      expect((results[0] as any).name).toBe('User1')
+      expect((results[0] as any).value).toBe(10)
+      expect((results[99] as any).id).toBe(100)
+      expect((results[99] as any).name).toBe('User100')
+      expect((results[99] as any).value).toBe(1000)
+
+      // Clean up
+      await queryRunner.command({
+        sql: `DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${testTableName}`,
+      })
+    })
+  })
 })
