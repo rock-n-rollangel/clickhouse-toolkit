@@ -167,6 +167,7 @@ describe('QueryRunner', () => {
 
       expect(mockClient.query).toHaveBeenCalledWith({
         query: request.sql,
+        format: 'JSON',
         clickhouse_settings: undefined,
         abort_signal: new AbortController().signal,
       })
@@ -192,6 +193,7 @@ describe('QueryRunner', () => {
 
       expect(mockClient.query).toHaveBeenCalledWith({
         query: request.sql,
+        format: 'JSON',
         clickhouse_settings: { max_execution_time: 120 },
         abort_signal: new AbortController().signal,
       })
@@ -309,7 +311,7 @@ describe('QueryRunner', () => {
 
       mockClient.query.mockResolvedValue(mockResult)
 
-      const stream = await queryRunner.streamJSONEachRow(request)
+      const stream = await queryRunner.stream({ ...request, format: 'JSONEachRow' })
 
       expect(mockClient.query).toHaveBeenCalledWith({
         query: 'SELECT * FROM users',
@@ -337,7 +339,7 @@ describe('QueryRunner', () => {
 
       mockClient.query.mockResolvedValue(mockResult)
 
-      await queryRunner.streamJSONEachRow(request)
+      await queryRunner.stream({ ...request, format: 'JSONEachRow' })
 
       expect(mockClient.query).toHaveBeenCalledWith({
         query: 'SELECT * FROM users',
@@ -365,7 +367,7 @@ describe('QueryRunner', () => {
 
       mockClient.query.mockResolvedValue(mockResult)
 
-      const stream = await queryRunner.streamCSV(request)
+      const stream = await queryRunner.stream({ ...request, format: 'CSV' })
 
       expect(mockClient.query).toHaveBeenCalledWith({
         query: 'SELECT * FROM users',
@@ -393,7 +395,7 @@ describe('QueryRunner', () => {
 
       mockClient.query.mockResolvedValue(mockResult)
 
-      await queryRunner.streamCSV(request)
+      await queryRunner.stream({ ...request, format: 'CSV' })
 
       expect(mockClient.query).toHaveBeenCalledWith({
         query: 'SELECT * FROM users',

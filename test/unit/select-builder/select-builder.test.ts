@@ -433,6 +433,8 @@ describe('SelectBuilder', () => {
 
       expect(mockQueryRunner.execute).toHaveBeenCalledWith({
         sql: "SELECT `id`, `name` FROM `users` WHERE `status` = 'active'",
+        settings: undefined,
+        format: 'JSON',
       })
       expect(result).toEqual(mockData)
     })
@@ -449,6 +451,8 @@ describe('SelectBuilder', () => {
 
       expect(mockQueryRunner.stream).toHaveBeenCalledWith({
         sql: "SELECT `id`, `name` FROM `users` WHERE `status` = 'active'",
+        settings: undefined,
+        format: 'JSONEachRow',
       })
       expect(result).toEqual(mockStream)
     })

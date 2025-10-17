@@ -1,6 +1,5 @@
 /**
  * Fluent DSL for SELECT queries
- * Safety-first approach with no string concatenation
  */
 
 import { SelectNode, PredicateNode } from '../core/ast'
@@ -11,6 +10,7 @@ import { QueryRunner } from '../runner/query-runner'
 import { createValidationError } from '../core/errors'
 import { Logger, createLoggerContext } from '../core/logger'
 import { operatorToPredicate, parseColumnRef } from '../core/predicate-builder'
+import { DataFormat, StreamableDataFormat } from '@clickhouse/client'
 
 export class SelectBuilder {
   private query: SelectNode
@@ -186,6 +186,12 @@ export class SelectBuilder {
     return this
   }
 
+  // Format specification
+  format(fmt: DataFormat): this {
+    this.query.format = fmt
+    return this
+  }
+
   // Output methods
   toSQL(): { sql: string; params: any[] } {
     this.logger.debug('Converting query to SQL')
@@ -214,23 +220,58 @@ export class SelectBuilder {
     if (!runner) {
       throw createValidationError('QueryRunner is required to execute queries', undefined, 'runner')
     }
-    return runner.execute<T>({ sql, settings: this.query.settings })
+    return runner.execute<T>({
+      sql,
+      settings: this.query.settings,
+      format: (this.query.format as DataFormat) || 'JSON',
+    })
   }
 
-  async stream<T = unknown>(runner?: QueryRunner, format?: 'JSONEachRow' | 'CSV'): Promise<NodeJS.ReadableStream> {
+  async stream<T = unknown>(runner?: QueryRunner): Promise<NodeJS.ReadableStream> {
     const { sql } = this.toSQL()
     if (!runner) {
       throw createValidationError('QueryRunner is required to stream queries', undefined, 'runner')
     }
 
-    // Default to JSONEachRow if no format specified
-    if (!format || format === 'JSONEachRow') {
-      return await runner.stream<T>({ sql, settings: this.query.settings })
-    } else if (format === 'CSV') {
-      return await runner.streamCSV({ sql, settings: this.query.settings })
-    }
+    const format = this.query.format || 'JSONEachRow'
 
-    throw createValidationError(`Unsupported stream format: ${format}`, undefined, 'format', format)
+    // Validate that the format is streamable
+    this.validateStreamableFormat(format as DataFormat)
+
+    return await runner.stream<T>({
+      sql,
+      settings: this.query.settings,
+      format: format as StreamableDataFormat,
+    })
+  }
+
+  private validateStreamableFormat(format: DataFormat): void {
+    const streamableFormats: StreamableDataFormat[] = [
+      'JSONEachRow',
+      'JSONStringsEachRow',
+      'JSONCompactEachRow',
+      'JSONCompactStringsEachRow',
+      'JSONCompactEachRowWithNames',
+      'JSONCompactEachRowWithNamesAndTypes',
+      'JSONCompactStringsEachRowWithNames',
+      'JSONCompactStringsEachRowWithNamesAndTypes',
+      'CSV',
+      'CSVWithNames',
+      'CSVWithNamesAndTypes',
+      'TabSeparated',
+      'TabSeparatedRaw',
+      'TabSeparatedWithNames',
+      'TabSeparatedWithNamesAndTypes',
+    ]
+
+    if (!streamableFormats.includes(format as StreamableDataFormat)) {
+      throw createValidationError(
+        `Format '${format}' is not streamable. Streamable formats: ${streamableFormats.join(', ')}`,
+        undefined,
+        'format',
+        format,
+      )
+    }
   }
 
   // Internal methods

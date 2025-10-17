@@ -7,9 +7,13 @@ import { QueryNormalizer } from '../core/normalizer'
 import { ClickHouseRenderer } from '../dialect-ch/renderer'
 import { createValidationError } from '../core/errors'
 import { QueryRunner } from '../runner/query-runner'
+import { DataFormat } from '@clickhouse/client'
 
 export class InsertBuilder {
   private query: InsertNode
+  private insertStrategy: 'values' | 'objects' | 'stream' = 'values'
+  private objectData?: Array<Record<string, any>>
+  private streamData?: NodeJS.ReadableStream
 
   constructor(table: string) {
     this.query = {
@@ -26,20 +30,32 @@ export class InsertBuilder {
     return this
   }
 
-  // Values specification
   values(vals: any[][]): this {
+    this.insertStrategy = 'values'
     this.query.values = vals
     return this
   }
 
-  // Single row values
   value(row: any[]): this {
+    this.insertStrategy = 'values'
     this.query.values.push(row)
     return this
   }
 
+  objects(data: Array<Record<string, any>>): this {
+    this.insertStrategy = 'objects'
+    this.objectData = data
+    return this
+  }
+
+  fromStream(stream: NodeJS.ReadableStream): this {
+    this.insertStrategy = 'stream'
+    this.streamData = stream
+    return this
+  }
+
   // Format specification
-  format(fmt: string): this {
+  format(fmt: DataFormat): this {
     this.query.format = fmt
     return this
   }
@@ -58,11 +74,38 @@ export class InsertBuilder {
   }
 
   async run(runner?: QueryRunner): Promise<void> {
-    const { sql } = this.toSQL()
     if (!runner) {
       throw createValidationError('QueryRunner is required to execute queries', undefined, 'runner')
     }
-    await runner.command({ sql })
+
+    // Determine insert strategy and execute accordingly
+    if (this.insertStrategy === 'values') {
+      // Use existing SQL generation approach
+      const { sql } = this.toSQL()
+      await runner.command({ sql, format: this.query.format as DataFormat })
+    } else if (this.insertStrategy === 'objects') {
+      // Use ClickHouse client's insert method for objects
+      if (!this.objectData) {
+        throw createValidationError('Object data is required for object-based inserts', undefined, 'data')
+      }
+      await runner.insert({
+        table: this.query.table,
+        values: this.objectData,
+        format: (this.query.format as DataFormat) || 'JSONEachRow',
+        columns: this.query.columns.length > 0 ? this.query.columns : undefined,
+      })
+    } else if (this.insertStrategy === 'stream') {
+      // Use ClickHouse client's insert method for streams
+      if (!this.streamData) {
+        throw createValidationError('Stream data is required for stream-based inserts', undefined, 'data')
+      }
+      await runner.insert({
+        table: this.query.table,
+        values: this.streamData,
+        format: (this.query.format as DataFormat) || 'JSONCompactEachRow',
+        columns: this.query.columns.length > 0 ? this.query.columns : undefined,
+      })
+    }
   }
 }
 

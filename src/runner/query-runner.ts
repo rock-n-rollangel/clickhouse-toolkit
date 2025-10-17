@@ -3,7 +3,7 @@
  * Handles HTTP/native adapters, retries, timeouts, streaming
  */
 
-import { createClient, ClickHouseClient } from '@clickhouse/client'
+import { createClient, ClickHouseClient, DataFormat, StreamableDataFormat } from '@clickhouse/client'
 import { QueryContext } from '../core/ir'
 import {
   ClickHouseToolkitError,
@@ -11,6 +11,7 @@ import {
   createQueryError,
   createTimeoutError,
   createConnectionError,
+  createValidationError,
 } from '../core/errors'
 import { Logger, LoggerContext, createLoggerContext } from '../core/logger'
 
@@ -36,6 +37,14 @@ export interface QuerySettings {
 export interface QueryRequest {
   sql: string
   settings?: QuerySettings
+  format?: DataFormat
+}
+
+export interface InsertRequest {
+  table: string
+  values: Array<Record<string, any>> | NodeJS.ReadableStream
+  format?: DataFormat
+  columns?: string[]
 }
 
 export class QueryRunner {
@@ -71,6 +80,7 @@ export class QueryRunner {
     queryLogger.debug('Executing command', {
       sql: request.sql,
       settings: request.settings,
+      format: request.format,
     })
 
     try {
@@ -104,12 +114,14 @@ export class QueryRunner {
     queryLogger.debug('Executing query', {
       sql: request.sql,
       settings: request.settings,
+      format: request.format,
     })
 
     try {
       const result = await queryLogger.timeAsync('query_execution', async () => {
         return await this.client.query({
           query: request.sql,
+          format: request.format || 'JSON',
           clickhouse_settings: request.settings,
           abort_signal: this.createAbortSignal(),
         })
@@ -140,16 +152,22 @@ export class QueryRunner {
     const context = this.createContext(request)
     const queryLogger = this.logger.withQueryId(context.queryId).withOperation('stream')
 
+    const format = request.format || 'JSONEachRow'
+
+    // Validate streamable format
+    this.validateStreamableFormat(format)
+
     queryLogger.debug('Starting query stream', {
       sql: request.sql,
       settings: request.settings,
+      format,
     })
 
     try {
       const result = await queryLogger.timeAsync('stream_creation', async () => {
         return await this.client.query({
           query: request.sql,
-          format: 'JSONEachRow',
+          format: format as StreamableDataFormat,
           clickhouse_settings: request.settings,
           abort_signal: this.createAbortSignal(),
         })
@@ -171,75 +189,36 @@ export class QueryRunner {
   }
 
   /**
-   * Execute a query with JSONEachRow format for streaming
-   * Uses ClickHouse client's native streaming with JSONEachRow format
+   * Insert data using ClickHouse client's native insert method
    */
-  async streamJSONEachRow<T = unknown>(request: QueryRequest): Promise<NodeJS.ReadableStream> {
-    const context = this.createContext(request)
-    const queryLogger = this.logger.withQueryId(context.queryId).withOperation('streamJSONEachRow')
+  async insert(request: InsertRequest): Promise<void> {
+    const context = this.createContext({ sql: `INSERT INTO ${request.table}`, settings: {} })
+    const queryLogger = this.logger.withQueryId(context.queryId).withOperation('insert')
 
-    queryLogger.debug('Starting JSONEachRow stream', {
-      sql: request.sql,
-      format: 'JSONEachRow',
+    queryLogger.debug('Executing insert', {
+      table: request.table,
+      format: request.format,
+      columns: request.columns,
     })
 
     try {
-      const result = await queryLogger.timeAsync('json_each_row_stream_creation', async () => {
-        return await this.client.query({
-          query: request.sql,
-          format: 'JSONEachRow',
-          clickhouse_settings: request.settings,
+      await queryLogger.timeAsync('insert_execution', async () => {
+        return await this.client.insert({
+          table: request.table,
+          values: request.values as any,
+          format: request.format || 'JSONCompactEachRow',
+          columns: request.columns && request.columns.length > 0 ? (request.columns as any) : undefined,
+          clickhouse_settings: {},
           abort_signal: this.createAbortSignal(),
         })
       })
 
-      queryLogger.info('JSONEachRow stream created successfully', {
-        sql: request.sql,
+      queryLogger.info('Insert executed successfully', {
+        table: request.table,
       })
-
-      // Use ClickHouse client's native stream() method
-      return result.stream<T>()
     } catch (error) {
-      queryLogger.error('JSONEachRow stream creation failed', {
-        sql: request.sql,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      throw this.handleError(error, context)
-    }
-  }
-
-  /**
-   * Execute a query with CSV format for streaming
-   * Uses ClickHouse client's native streaming with CSV format
-   */
-  async streamCSV(request: QueryRequest): Promise<NodeJS.ReadableStream> {
-    const context = this.createContext(request)
-    const queryLogger = this.logger.withQueryId(context.queryId).withOperation('streamCSV')
-
-    queryLogger.debug('Starting CSV stream', {
-      sql: request.sql,
-      format: 'CSV',
-    })
-
-    try {
-      const result = await queryLogger.timeAsync('csv_stream_creation', async () => {
-        return await this.client.query({
-          query: request.sql,
-          format: 'CSV',
-          clickhouse_settings: request.settings,
-          abort_signal: this.createAbortSignal(),
-        })
-      })
-
-      queryLogger.info('CSV stream created successfully', {
-        sql: request.sql,
-      })
-
-      // Use ClickHouse client's native stream() method
-      return result.stream()
-    } catch (error) {
-      queryLogger.error('CSV stream creation failed', {
-        sql: request.sql,
+      queryLogger.error('Insert execution failed', {
+        table: request.table,
         error: error instanceof Error ? error.message : String(error),
       })
       throw this.handleError(error, context)
@@ -300,6 +279,35 @@ export class QueryRunner {
       return controller.signal
     }
     return undefined
+  }
+
+  private validateStreamableFormat(format: DataFormat): void {
+    const streamableFormats: StreamableDataFormat[] = [
+      'JSONEachRow',
+      'JSONStringsEachRow',
+      'JSONCompactEachRow',
+      'JSONCompactStringsEachRow',
+      'JSONCompactEachRowWithNames',
+      'JSONCompactEachRowWithNamesAndTypes',
+      'JSONCompactStringsEachRowWithNames',
+      'JSONCompactStringsEachRowWithNamesAndTypes',
+      'CSV',
+      'CSVWithNames',
+      'CSVWithNamesAndTypes',
+      'TabSeparated',
+      'TabSeparatedRaw',
+      'TabSeparatedWithNames',
+      'TabSeparatedWithNamesAndTypes',
+    ]
+
+    if (!streamableFormats.includes(format as StreamableDataFormat)) {
+      throw createValidationError(
+        `Format '${format}' is not streamable. Streamable formats: ${streamableFormats.join(', ')}`,
+        undefined,
+        'format',
+        format,
+      )
+    }
   }
 
   private handleError(error: any, context: QueryContext): ClickHouseToolkitError {
