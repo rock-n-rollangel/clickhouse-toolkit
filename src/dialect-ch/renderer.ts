@@ -155,8 +155,6 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     sql += ' VALUES'
 
-    // This is a simplified version - in practice, you'd want to handle
-    // different value formats (VALUES, JSONEachRow, etc.)
     const values = query.values || []
     if (values.length > 0) {
       const valueRows = values.map(
@@ -297,13 +295,10 @@ export class ClickHouseRenderer extends LoggingComponent {
   }
 
   private formatPredicateRight(right: Primitive | Primitive[] | any): string {
-    // Handle subqueries
     if (right && typeof right === 'object' && right.__subquery) {
       const subquerySQL = this.renderSelect(right.__subquery).sql
       return `(${subquerySQL})`
     }
-
-    // Handle column references in JOIN ON clauses
     if (right && typeof right === 'object' && right.type === 'column') {
       return this.quoteIdentifier(right.table ? `${right.table}.${right.name}` : right.name, 'predicate')
     }
@@ -322,16 +317,11 @@ export class ClickHouseRenderer extends LoggingComponent {
 
   private renderAndPredicate(predicate: NormalizedAndPredicate, isTopLevel: boolean = false): string {
     const rendered = predicate.predicates.map((p) => this.renderPredicateNode(p)).join(' AND ')
-    // Add parentheses for AND predicates created from combinators (And() function)
-    // but only when they contain simple predicates (not nested OR/NOT) or when not at top level
     if (predicate.fromCombinator && predicate.predicates.length > 1) {
       const hasComplexNestedPredicates = predicate.predicates.some(
         (p) => p.type === 'or' || p.type === 'not' || (p.type === 'and' && p.fromCombinator),
       )
 
-      // Add parentheses if:
-      // 1. Not at top level, OR
-      // 2. At top level but contains only simple predicates (no nested OR/NOT)
       if (!isTopLevel || !hasComplexNestedPredicates) {
         return `(${rendered})`
       }
@@ -431,7 +421,6 @@ export class ClickHouseRenderer extends LoggingComponent {
    * Render column expression (may be a simple column name or a function call) - DEPRECATED
    */
   private renderColumnExpression(expr: string): string {
-    // Use quoteIdentifier which already handles functions vs simple columns
     return this.quoteIdentifier(expr, 'select')
   }
 

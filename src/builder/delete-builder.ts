@@ -141,8 +141,6 @@ export class DeleteBuilder extends LoggingComponent {
   private buildPredicateFromOperatorOrWhereInput(input: Operator | WhereInput): PredicateNode {
     // Check if it's an Operator (has 'type' and 'value')
     if (typeof input === 'object' && 'type' in input && 'value' in input) {
-      // This is a bare Operator without a column - this shouldn't happen in normal flow
-      // but we handle it for type safety
       throw createValidationError(
         'Cannot use a bare Operator without a column. Use it within a column context like { column: Operator }',
         undefined,

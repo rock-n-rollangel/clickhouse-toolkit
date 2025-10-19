@@ -303,8 +303,6 @@ export class Migrator {
 
     this.logger.info('Found TypeScript migration files', { count: files.length, files })
 
-    // Note: In a real implementation, you would need to dynamically import and instantiate these classes
-    // For now, we'll just log them as they would need to be manually registered
     this.logger.warn('TypeScript file migrations require manual registration', {
       files,
       note: 'Use migrationClasses option to register TypeScript migration classes',
@@ -329,13 +327,8 @@ export class Migrator {
       const filePath = path.join(migrationsPath, filename)
       const content = fs.readFileSync(filePath, 'utf8')
 
-      // Extract migration ID from filename (e.g., "001_create_users.sql" -> "001_create_users")
       const id = path.basename(filename, path.extname(filename))
-
-      // Calculate checksum for integrity verification
       const checksum = crypto.createHash('sha256').update(content).digest('hex')
-
-      // Parse migration content
       const steps = this.parseMigrationContent(content)
 
       const migration: FileMigration = {

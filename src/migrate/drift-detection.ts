@@ -196,8 +196,6 @@ export class DriftDetection {
       columns: Array<{ name: string; type: string }>
     }>
   }> {
-    // This is a placeholder - in a real implementation, you'd load this from
-    // your schema definitions, migration files, or a schema registry
     return {
       tables: [],
     }

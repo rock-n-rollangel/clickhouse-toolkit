@@ -216,7 +216,6 @@ export class QueryNormalizer extends LoggingComponent {
         }
 
       case 'raw':
-        // Log usage for security awareness
         this.logger.warn('Raw SQL expression used', { sql: expr.sql })
         return {
           exprType: 'raw',
@@ -225,7 +224,6 @@ export class QueryNormalizer extends LoggingComponent {
         }
 
       case 'function':
-        // Keep structure - don't stringify yet!
         return {
           exprType: 'function',
           functionName: expr.name,
@@ -234,7 +232,6 @@ export class QueryNormalizer extends LoggingComponent {
         }
 
       case 'case':
-        // Keep structure - don't stringify yet!
         return {
           exprType: 'case',
           caseCases: expr.cases.map((c) => ({
@@ -297,10 +294,8 @@ export class QueryNormalizer extends LoggingComponent {
       case 'tuple':
         return expr.values
       case 'column':
-        // For column references in JOIN ON clauses, return the column reference as-is
         return expr
       case 'subquery':
-        // Return a marker for subqueries that will be handled in rendering
         return { __subquery: this.normalizeQuery(expr.query.query) }
       default:
         throw createValidationError(`Cannot extract value from ${expr.type}`, undefined, 'expression', expr)

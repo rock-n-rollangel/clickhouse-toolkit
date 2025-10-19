@@ -3,7 +3,7 @@
  * These functions return Expr objects for type-safe query building
  */
 
-import { Expr, ColumnRef, Value, RawExpr, FunctionCall } from './ast'
+import { Expr, ColumnRef, Value, RawExpr, FunctionCall, Primitive } from './ast'
 
 /**
  * Creates a raw SQL expression that works in SELECT, WHERE, and other contexts
@@ -18,6 +18,20 @@ import { Expr, ColumnRef, Value, RawExpr, FunctionCall } from './ast'
  */
 export function Raw(sql: string): RawExpr {
   return { type: 'raw', sql }
+}
+
+/**
+ * Creates a column reference expression
+ */
+export function Column(name: string, table?: string): ColumnRef {
+  return { type: 'column', name, table }
+}
+
+/**
+ * Creates a literal value expression
+ */
+export function Value(value: Primitive): Value {
+  return { type: 'value', value }
 }
 
 /**

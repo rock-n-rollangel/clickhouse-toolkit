@@ -71,6 +71,9 @@ export { deleteFrom } from './builder/delete-builder'
 
 // Re-export SQL helper functions
 export {
+  // Expression helpers
+  Column,
+  Value,
   // Raw SQL function
   Raw,
   // CASE builder
