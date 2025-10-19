@@ -32,7 +32,24 @@ export interface Subquery {
   query: SelectNode
 }
 
-export type Expr = ColumnRef | Value | ArrayValue | TupleValue | Subquery
+export interface RawExpr {
+  type: 'raw'
+  sql: string
+}
+
+export interface FunctionCall {
+  type: 'function'
+  name: string
+  args: Expr[]
+}
+
+export interface CaseExpr {
+  type: 'case'
+  cases: Array<{ condition: PredicateNode; then: Expr }>
+  else?: Expr
+}
+
+export type Expr = ColumnRef | Value | ArrayValue | TupleValue | Subquery | RawExpr | FunctionCall | CaseExpr
 
 export interface Predicate {
   type: 'predicate'
@@ -57,7 +74,12 @@ export interface NotPredicate {
   predicate: PredicateNode
 }
 
-export type PredicateNode = Predicate | AndPredicate | OrPredicate | NotPredicate
+export interface RawPredicate {
+  type: 'raw_predicate'
+  sql: string
+}
+
+export type PredicateNode = Predicate | AndPredicate | OrPredicate | NotPredicate | RawPredicate
 
 export interface OrderSpec {
   column: ColumnRef
@@ -78,7 +100,7 @@ export interface WithClause {
 
 export interface SelectNode {
   type: 'select'
-  columns: ColumnRef[]
+  columns: Expr[]
   from?: {
     table: string | Subquery
     alias?: string

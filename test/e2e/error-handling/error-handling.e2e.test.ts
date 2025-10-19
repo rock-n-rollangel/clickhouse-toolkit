@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals'
-import { select, insertInto, update, deleteFrom, createQueryRunner, Eq, IsNull } from '../../../src/index'
+import { select, insertInto, update, deleteFrom, createQueryRunner, Eq, IsNull, Count } from '../../../src/index'
 import { testSetup, DEFAULT_TEST_CONFIG } from '../setup/test-setup'
 
 describe('Error Handling E2E Tests', () => {
@@ -134,10 +134,7 @@ describe('Error Handling E2E Tests', () => {
 
     it('should handle invalid GROUP BY clauses', async () => {
       await expect(
-        select(['invalid_column', { column: 'count()', alias: 'total' }])
-          .from('users')
-          .groupBy(['invalid_column'])
-          .run(queryRunner),
+        select(['invalid_column', Count()]).from('users').groupBy(['invalid_column']).run(queryRunner),
       ).rejects.toThrow()
     })
 

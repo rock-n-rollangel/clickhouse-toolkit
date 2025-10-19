@@ -5,6 +5,36 @@
 
 import { Primitive } from './ast'
 
+export interface ExprIR {
+  exprType: 'column' | 'raw' | 'function' | 'case' | 'value' | 'subquery' | 'array' | 'tuple'
+  alias?: string
+
+  // For columns
+  columnName?: string
+  tableName?: string
+
+  // For raw SQL
+  rawSql?: string
+
+  // For function calls (keep structured!)
+  functionName?: string
+  functionArgs?: ExprIR[]
+
+  // For CASE expressions (keep structured!)
+  caseCases?: Array<{ condition: NormalizedPredicateNode; then: ExprIR }>
+  caseElse?: ExprIR
+
+  // For values
+  value?: Primitive
+
+  // For arrays/tuples
+  values?: Primitive[]
+
+  // For subqueries - will be defined after QueryIR
+  subquery?: QueryIR
+}
+
+// Keep ColumnIR for backward compatibility
 export interface ColumnIR {
   column: string
   alias?: string
@@ -14,7 +44,7 @@ export interface QueryIR {
   type: 'select' | 'insert' | 'update' | 'delete'
   table: string
   tableAlias?: string
-  columns?: ColumnIR[]
+  columns?: ExprIR[]
   predicates: NormalizedPredicateNode[]
   orderBy?: Array<{ column: string; direction: 'ASC' | 'DESC' }>
   limit?: number
@@ -64,11 +94,17 @@ export interface NormalizedNotPredicate {
   isPrewhere?: boolean
 }
 
+export interface RawPredicateIR {
+  type: 'raw_predicate'
+  sql: string
+}
+
 export type NormalizedPredicateNode =
   | NormalizedPredicate
   | NormalizedAndPredicate
   | NormalizedOrPredicate
   | NormalizedNotPredicate
+  | RawPredicateIR
 
 export interface NormalizedQuery {
   type: 'select' | 'insert' | 'update' | 'delete'

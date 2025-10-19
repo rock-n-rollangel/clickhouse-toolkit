@@ -115,11 +115,6 @@ export function Not(predicate: WhereInput | Operator): PredicateCombinator {
   return { type: 'not', predicates: [predicate] }
 }
 
-// Escape hatch for raw SQL (explicitly unsafe)
-export function Raw(sql: string): Operator {
-  return { type: 'raw', value: sql }
-}
-
 // Helper functions for common patterns
 export function startsWith(prefix: string): Operator {
   return Like(`${escapeLikePattern(prefix)}%`)

@@ -11,6 +11,7 @@ export * from './core/operators'
 export * from './core/errors'
 export * from './core/logger'
 export * from './core/predicate-builder'
+export * from './core/case-builder'
 
 // Builder exports
 export * from './builder/select-builder'
@@ -55,7 +56,6 @@ export {
   And,
   Or,
   Not,
-  Raw,
   startsWith,
   endsWith,
   contains,
@@ -69,6 +69,10 @@ export { deleteFrom } from './builder/delete-builder'
 
 // Re-export SQL helper functions
 export {
+  // Raw SQL function
+  Raw,
+  // CASE builder
+  Case,
   // Aggregate functions
   Count,
   Sum,

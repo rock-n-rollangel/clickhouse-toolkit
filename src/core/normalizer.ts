@@ -3,9 +3,10 @@
  * Simplifies boolean logic, validates identifiers, resolves types
  */
 
-import { QueryNode, PredicateNode, AndPredicate, OrPredicate, NotPredicate, Predicate } from './ast'
+import { QueryNode, PredicateNode, AndPredicate, OrPredicate, NotPredicate, Predicate, Expr, RawPredicate } from './ast'
 import {
   QueryIR,
+  ExprIR,
   NormalizedPredicate,
   NormalizedPredicateNode,
   NormalizedAndPredicate,
@@ -14,8 +15,11 @@ import {
   ValidationResult,
 } from './ir'
 import { ValidationError, createValidationError } from './errors'
+import { Logger, createLoggerContext } from './logger'
 
 export class QueryNormalizer {
+  private static logger: Logger = createLoggerContext({ component: 'QueryNormalizer' })
+
   /**
    * Normalize a query AST to IR
    */
@@ -119,7 +123,7 @@ export class QueryNormalizer {
       type: 'select',
       table: query.from?.table || '',
       tableAlias: query.from?.alias,
-      columns: query.columns?.map((col: any) => this.normalizeColumnWithAlias(col)),
+      columns: query.columns?.map((col: any) => this.normalizeExpression(col)),
       predicates: [...prewherePredicates, ...predicates],
       orderBy: query.orderBy?.map((o: any) => ({
         column: this.normalizeColumnRef(o.column),
@@ -144,7 +148,10 @@ export class QueryNormalizer {
     return {
       type: 'insert',
       table: query.table,
-      columns: query.columns?.map((col: string) => ({ column: col })),
+      columns: query.columns?.map((col: string) => ({
+        exprType: 'column' as const,
+        columnName: col,
+      })),
       values: query.values,
       predicates: [],
     }
@@ -186,6 +193,12 @@ export class QueryNormalizer {
         return this.normalizeOrPredicate(predicate)
       case 'not':
         return this.normalizeNotPredicate(predicate)
+      case 'raw_predicate':
+        this.logger.warn('Raw SQL predicate used', { sql: (predicate as RawPredicate).sql })
+        return {
+          type: 'raw_predicate',
+          sql: (predicate as RawPredicate).sql,
+        }
       default:
         throw createValidationError(
           `Unsupported predicate type: ${(predicate as any).type}`,
@@ -234,18 +247,89 @@ export class QueryNormalizer {
     throw createValidationError('Expected column reference', undefined, 'expression', expr)
   }
 
-  private static normalizeColumnWithAlias(expr: any): { column: string; alias?: string } {
-    if (expr.type === 'column') {
-      const column = expr.table ? `${expr.table}.${expr.name}` : expr.name
-      return expr.alias ? { column, alias: expr.alias } : { column }
+  private static normalizeExpression(expr: Expr): ExprIR {
+    const alias = (expr as any).alias
+
+    switch (expr.type) {
+      case 'column':
+        return {
+          exprType: 'column',
+          columnName: expr.name,
+          tableName: expr.table,
+          alias,
+        }
+
+      case 'raw':
+        // Log usage for security awareness
+        this.logger.warn('Raw SQL expression used', { sql: expr.sql })
+        return {
+          exprType: 'raw',
+          rawSql: expr.sql,
+          alias,
+        }
+
+      case 'function':
+        // Keep structure - don't stringify yet!
+        return {
+          exprType: 'function',
+          functionName: expr.name,
+          functionArgs: expr.args.map((arg) => this.normalizeExpression(arg)),
+          alias,
+        }
+
+      case 'case':
+        // Keep structure - don't stringify yet!
+        return {
+          exprType: 'case',
+          caseCases: expr.cases.map((c) => ({
+            condition: this.normalizePredicate(c.condition),
+            then: this.normalizeExpression(c.then),
+          })),
+          caseElse: expr.else ? this.normalizeExpression(expr.else) : undefined,
+          alias,
+        }
+
+      case 'subquery':
+        const subqueryIR = this.normalizeQuery(expr.query)
+        return {
+          exprType: 'subquery',
+          subquery: subqueryIR,
+          alias,
+        }
+
+      case 'value':
+        return {
+          exprType: 'value',
+          value: expr.value,
+          alias,
+        }
+
+      case 'array':
+        return {
+          exprType: 'array',
+          values: expr.values,
+          alias,
+        }
+
+      case 'tuple':
+        return {
+          exprType: 'tuple',
+          values: expr.values,
+          alias,
+        }
+
+      default:
+        throw createValidationError(
+          `Unsupported expression type: ${(expr as any).type}`,
+          undefined,
+          'expression',
+          (expr as any).type,
+        )
     }
-    if (expr.type === 'subquery') {
-      // Subquery in SELECT - normalize it and return as a special marker
-      const subqueryIR = this.normalizeQuery(expr.query.query)
-      const alias = expr.query.getAlias?.() || expr.alias
-      return { column: `__SUBQUERY_${JSON.stringify(subqueryIR)}__`, alias }
-    }
-    throw createValidationError('Expected column reference', undefined, 'expression', expr)
+  }
+
+  private static normalizeColumnWithAlias(expr: any): ExprIR {
+    return this.normalizeExpression(expr)
   }
 
   private static extractValue(expr: any): any {

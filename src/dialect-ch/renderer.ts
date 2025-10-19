@@ -5,6 +5,8 @@
 
 import {
   QueryIR,
+  ExprIR,
+  RawPredicateIR,
   NormalizedPredicate,
   NormalizedPredicateNode,
   NormalizedAndPredicate,
@@ -51,16 +53,7 @@ export class ClickHouseRenderer {
     if (query.columns && query.columns.length > 0) {
       sql += query.columns
         .map((col) => {
-          let columnExpr: string
-          // Check if it's a subquery marker
-          if (col.column.startsWith('__SUBQUERY_')) {
-            const subqueryJSON = col.column.substring(11, col.column.length - 2)
-            const subqueryIR = JSON.parse(subqueryJSON)
-            const subquerySQL = this.renderSelect(subqueryIR).sql
-            columnExpr = `(${subquerySQL})`
-          } else {
-            columnExpr = this.renderColumnExpression(col.column)
-          }
+          const columnExpr = this.renderExpression(col, 'select')
           return col.alias ? `${columnExpr} AS ${this.quoteIdentifier(col.alias)}` : columnExpr
         })
         .join(', ')
@@ -87,13 +80,13 @@ export class ClickHouseRenderer {
     }
 
     // PREWHERE
-    const prewherePredicates = query.predicates.filter((p) => p.isPrewhere)
+    const prewherePredicates = query.predicates.filter((p) => 'isPrewhere' in p && p.isPrewhere)
     if (prewherePredicates.length > 0) {
       sql += ' PREWHERE ' + this.renderPredicates(prewherePredicates)
     }
 
     // WHERE
-    const wherePredicates = query.predicates.filter((p) => !p.isPrewhere)
+    const wherePredicates = query.predicates.filter((p) => !('isPrewhere' in p && p.isPrewhere))
     if (wherePredicates.length > 0) {
       sql += ' WHERE ' + this.renderPredicates(wherePredicates, true)
     }
@@ -141,7 +134,20 @@ export class ClickHouseRenderer {
     let sql = `INSERT INTO ${this.quoteIdentifier(query.table)}`
 
     if (query.columns && query.columns.length > 0) {
-      sql += ` (${query.columns.map((col) => this.quoteIdentifier(col.column)).join(', ')})`
+      sql += ` (${query.columns
+        .map((col) => {
+          if (col.exprType === 'column') {
+            const colName = col.tableName ? `${col.tableName}.${col.columnName}` : col.columnName!
+            return this.quoteIdentifier(colName)
+          }
+          throw createValidationError(
+            'INSERT column list only supports column references, not expressions',
+            undefined,
+            'column',
+            col.exprType,
+          )
+        })
+        .join(', ')})`
     }
 
     sql += ' VALUES'
@@ -219,6 +225,9 @@ export class ClickHouseRenderer {
         return this.renderOrPredicate(predicate)
       case 'not':
         return this.renderNotPredicate(predicate)
+      case 'raw_predicate':
+        // Raw SQL - pass through unescaped
+        return (predicate as RawPredicateIR).sql
       default:
         throw createValidationError(
           `Unsupported predicate type: ${(predicate as any).type}`,
@@ -342,7 +351,76 @@ export class ClickHouseRenderer {
   }
 
   /**
-   * Render column expression (may be a simple column name or a function call)
+   * Render expression from structured IR
+   */
+  private static renderExpression(expr: ExprIR, context: 'select' | 'predicate' | 'function' = 'select'): string {
+    switch (expr.exprType) {
+      case 'column':
+        const colName = expr.tableName ? `${expr.tableName}.${expr.columnName}` : expr.columnName!
+        // Don't quote column names when they're function arguments
+        if (context === 'function') {
+          return colName
+        }
+        return this.quoteIdentifier(colName, context)
+
+      case 'raw':
+        // Raw SQL - pass through unescaped
+        return expr.rawSql!
+
+      case 'function':
+        // Render function call from structure
+        const args = expr.functionArgs!.map((arg) => this.renderExpression(arg, 'function')).join(', ')
+
+        // Special handling for CAST
+        if (expr.functionName === 'cast' && expr.functionArgs!.length === 2) {
+          const value = this.renderExpression(expr.functionArgs![0], 'function')
+          const type = this.renderExpression(expr.functionArgs![1], 'function')
+          return `CAST(${value} AS ${type})`
+        }
+
+        return `${expr.functionName}(${args})`
+
+      case 'case':
+        // Render CASE from structure
+        const cases = expr
+          .caseCases!.map((c) => {
+            const condition = this.renderPredicateNode(c.condition)
+            const thenVal = this.renderExpression(c.then, 'select')
+            return `WHEN ${condition} THEN ${thenVal}`
+          })
+          .join(' ')
+
+        const elseClause = expr.caseElse ? ` ELSE ${this.renderExpression(expr.caseElse, 'select')}` : ''
+
+        return `CASE ${cases}${elseClause} END`
+
+      case 'subquery':
+        const subquerySql = this.renderSelect(expr.subquery!).sql
+        return `(${subquerySql})`
+
+      case 'value':
+        return this.valueFormatter.formatValue(expr.value)
+
+      case 'array':
+        const formatted = expr.values!.map((v) => this.valueFormatter.formatValue(v))
+        return `(${formatted.join(', ')})`
+
+      case 'tuple':
+        const tupleVals = expr.values!.map((v) => this.valueFormatter.formatValue(v))
+        return `(${tupleVals.join(', ')})`
+
+      default:
+        throw createValidationError(
+          `Unsupported expression type: ${(expr as any).exprType}`,
+          undefined,
+          'exprType',
+          (expr as any).exprType,
+        )
+    }
+  }
+
+  /**
+   * Render column expression (may be a simple column name or a function call) - DEPRECATED
    */
   private static renderColumnExpression(expr: string): string {
     // Use quoteIdentifier which already handles functions vs simple columns

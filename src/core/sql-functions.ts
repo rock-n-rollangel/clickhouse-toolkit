@@ -1,176 +1,263 @@
 /**
  * SQL function helpers for building queries
- * These functions return SQL expressions as strings
+ * These functions return Expr objects for type-safe query building
  */
+
+import { Expr, ColumnRef, Value, RawExpr, FunctionCall } from './ast'
+
+/**
+ * Creates a raw SQL expression that works in SELECT, WHERE, and other contexts
+ * WARNING: This bypasses all SQL escaping. Ensure input is safe to prevent SQL injection.
+ *
+ * @example
+ * // In SELECT
+ * select([Raw('COUNT(*) OVER (PARTITION BY user_id)')])
+ *
+ * // In WHERE (entire predicate)
+ * where(Raw('age > 18 AND status = "active"'))
+ */
+export function Raw(sql: string): RawExpr {
+  return { type: 'raw', sql }
+}
 
 /**
  * Aggregate Functions
  */
 
-export function Count(column: string = '*'): string {
-  return `count(${column})`
+export function Count(column?: string | Expr): FunctionCall {
+  const arg = column
+    ? typeof column === 'string'
+      ? ({ type: 'column', name: column } as ColumnRef)
+      : column
+    : ({ type: 'raw', sql: '*' } as RawExpr)
+  return { type: 'function', name: 'count', args: [arg] }
 }
 
-export function Sum(column: string): string {
-  return `sum(${column})`
+export function Sum(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'sum', args: [arg] }
 }
 
-export function Avg(column: string): string {
-  return `avg(${column})`
+export function Avg(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'avg', args: [arg] }
 }
 
-export function Min(column: string): string {
-  return `min(${column})`
+export function Min(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'min', args: [arg] }
 }
 
-export function Max(column: string): string {
-  return `max(${column})`
+export function Max(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'max', args: [arg] }
 }
 
 /**
  * String Functions
  */
 
-export function Concat(...columns: string[]): string {
-  return `concat(${columns.join(', ')})`
+export function Concat(...columns: (string | Expr)[]): FunctionCall {
+  const args = columns.map((col) => (typeof col === 'string' ? ({ type: 'column', name: col } as ColumnRef) : col))
+  return { type: 'function', name: 'concat', args }
 }
 
-export function Upper(column: string): string {
-  return `upper(${column})`
+export function Upper(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'upper', args: [arg] }
 }
 
-export function Lower(column: string): string {
-  return `lower(${column})`
+export function Lower(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'lower', args: [arg] }
 }
 
-export function Trim(column: string): string {
-  return `trim(${column})`
+export function Trim(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'trim', args: [arg] }
 }
 
-export function Substring(column: string, start: number, length?: number): string {
-  return length !== undefined ? `substring(${column}, ${start}, ${length})` : `substring(${column}, ${start})`
+export function Substring(column: string | Expr, start: number, length?: number): FunctionCall {
+  const args = [
+    typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column,
+    { type: 'value', value: start } as Value,
+  ]
+  if (length !== undefined) {
+    args.push({ type: 'value', value: length } as Value)
+  }
+  return { type: 'function', name: 'substring', args }
 }
 
 /**
  * Math Functions
  */
 
-export function Round(column: string, decimals: number = 0): string {
-  return `round(${column}, ${decimals})`
+export function Round(column: string | Expr, decimals: number = 0): FunctionCall {
+  const args = [
+    typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column,
+    { type: 'value', value: decimals } as Value,
+  ]
+  return { type: 'function', name: 'round', args }
 }
 
-export function Floor(column: string): string {
-  return `floor(${column})`
+export function Floor(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'floor', args: [arg] }
 }
 
-export function Ceil(column: string): string {
-  return `ceil(${column})`
+export function Ceil(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'ceil', args: [arg] }
 }
 
-export function Abs(column: string): string {
-  return `abs(${column})`
+export function Abs(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'abs', args: [arg] }
 }
 
 /**
  * Conditional Functions
  */
 
-export function If(condition: string, thenValue: string, elseValue: string): string {
-  return `if(${condition}, ${thenValue}, ${elseValue})`
+export function If(condition: string | Expr, thenValue: string | Expr, elseValue: string | Expr): FunctionCall {
+  const args = [
+    typeof condition === 'string' ? Raw(condition) : condition,
+    typeof thenValue === 'string' ? ({ type: 'column', name: thenValue } as ColumnRef) : thenValue,
+    typeof elseValue === 'string' ? ({ type: 'column', name: elseValue } as ColumnRef) : elseValue,
+  ]
+  return { type: 'function', name: 'if', args }
 }
 
-export function Coalesce(...values: string[]): string {
-  return `coalesce(${values.join(', ')})`
+export function Coalesce(...values: (string | Expr)[]): FunctionCall {
+  const args = values.map((val) => (typeof val === 'string' ? ({ type: 'column', name: val } as ColumnRef) : val))
+  return { type: 'function', name: 'coalesce', args }
 }
 
 /**
  * Date/Time Functions
  */
 
-export function Now(): string {
-  return 'now()'
+export function Now(): FunctionCall {
+  return { type: 'function', name: 'now', args: [] }
 }
 
-export function Today(): string {
-  return 'today()'
+export function Today(): FunctionCall {
+  return { type: 'function', name: 'today', args: [] }
 }
 
-export function ToDate(column: string): string {
-  return `toDate(${column})`
+export function ToDate(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'toDate', args: [arg] }
 }
 
-export function ToDateTime(column: string): string {
-  return `toDateTime(${column})`
+export function ToDateTime(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'toDateTime', args: [arg] }
 }
 
-export function FormatDateTime(column: string, format: string): string {
-  return `formatDateTime(${column}, '${format}')`
+export function FormatDateTime(column: string | Expr, format: string): FunctionCall {
+  const args = [
+    typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column,
+    { type: 'value', value: format } as Value,
+  ]
+  return { type: 'function', name: 'formatDateTime', args }
 }
 
 /**
  * Array Functions
  */
 
-export function ArrayElement(array: string, index: number): string {
-  return `arrayElement(${array}, ${index})`
+export function ArrayElement(array: string | Expr, index: number): FunctionCall {
+  const args = [
+    typeof array === 'string' ? ({ type: 'column', name: array } as ColumnRef) : array,
+    { type: 'value', value: index } as Value,
+  ]
+  return { type: 'function', name: 'arrayElement', args }
 }
 
-export function ArrayLength(array: string): string {
-  return `length(${array})`
+export function ArrayLength(array: string | Expr): FunctionCall {
+  const arg = typeof array === 'string' ? ({ type: 'column', name: array } as ColumnRef) : array
+  return { type: 'function', name: 'length', args: [arg] }
 }
 
-export function ArrayJoin(array: string, separator: string = ','): string {
-  return `arrayStringConcat(${array}, '${separator}')`
+export function ArrayJoin(array: string | Expr, separator: string = ','): FunctionCall {
+  const args = [
+    typeof array === 'string' ? ({ type: 'column', name: array } as ColumnRef) : array,
+    { type: 'value', value: separator } as Value,
+  ]
+  return { type: 'function', name: 'arrayStringConcat', args }
 }
 
 /**
  * Type Conversion Functions
  */
 
-export function Cast(column: string, type: string): string {
-  return `cast(${column} as ${type})`
+export function Cast(value: string | Expr, toType: string): FunctionCall {
+  const arg = typeof value === 'string' ? ({ type: 'column', name: value } as ColumnRef) : value
+  return {
+    type: 'function',
+    name: 'cast',
+    args: [arg, { type: 'raw', sql: toType } as RawExpr],
+  }
 }
 
-export function ToString(column: string): string {
-  return `toString(${column})`
+export function ToString(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'toString', args: [arg] }
 }
 
-export function ToInt(column: string): string {
-  return `toInt32(${column})`
+export function ToInt(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'toInt32', args: [arg] }
 }
 
-export function ToFloat(column: string): string {
-  return `toFloat64(${column})`
+export function ToFloat(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'toFloat64', args: [arg] }
 }
 
 /**
  * ClickHouse-Specific Functions
  */
 
-export function Distinct(column: string): string {
-  return `distinct ${column}`
+export function Distinct(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'distinct', args: [arg] }
 }
 
-export function CountDistinct(column: string): string {
-  return `count(distinct ${column})`
+export function CountDistinct(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  // This is a special case - count(distinct x) function
+  return { type: 'function', name: 'count', args: [{ type: 'function', name: 'distinct', args: [arg] }] }
 }
 
-export function GroupArray(column: string): string {
-  return `groupArray(${column})`
+export function GroupArray(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'groupArray', args: [arg] }
 }
 
-export function GroupUniqArray(column: string): string {
-  return `groupUniqArray(${column})`
+export function GroupUniqArray(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'groupUniqArray', args: [arg] }
 }
 
-export function UniqExact(column: string): string {
-  return `uniqExact(${column})`
+export function UniqExact(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'uniqExact', args: [arg] }
 }
 
-export function Quantile(level: number, column: string): string {
-  return `quantile(${level})(${column})`
+export function Quantile(level: number, column: string | Expr): FunctionCall {
+  const args = [
+    { type: 'value', value: level } as Value,
+    typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column,
+  ]
+  return { type: 'function', name: 'quantile', args }
 }
 
-export function Median(column: string): string {
-  return `median(${column})`
+export function Median(column: string | Expr): FunctionCall {
+  const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
+  return { type: 'function', name: 'median', args: [arg] }
 }
+
+// Re-export Case builder for convenience
+export { Case } from './case-builder'

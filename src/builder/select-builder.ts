@@ -2,7 +2,7 @@
  * Fluent DSL for SELECT queries
  */
 
-import { SelectNode, PredicateNode } from '../core/ast'
+import { SelectNode, PredicateNode, Expr, RawExpr, RawPredicate } from '../core/ast'
 import { Operator, PredicateCombinator, WhereInput } from '../core/operators'
 import { QueryNormalizer } from '../core/normalizer'
 import { ClickHouseRenderer } from '../dialect-ch/renderer'
@@ -17,7 +17,7 @@ export class SelectBuilder {
   private logger: Logger
   private subqueryAlias?: string
 
-  constructor(columns?: string[] | Record<string, string | any>, logger?: Logger) {
+  constructor(columns?: Array<string | Expr> | Record<string, string | Expr | SelectBuilder>, logger?: Logger) {
     this.logger = logger || createLoggerContext({ component: 'SelectBuilder' })
 
     this.logger.debug('Creating SELECT query', { columns })
@@ -43,32 +43,47 @@ export class SelectBuilder {
     return this.subqueryAlias
   }
 
-  private parseColumns(columns?: string[] | Record<string, string | any>): any[] {
+  /**
+   * Get the internal query node (for normalization)
+   */
+  getQuery(): SelectNode {
+    return this.query
+  }
+
+  private parseColumns(columns?: Array<string | Expr> | Record<string, string | Expr | SelectBuilder>): Expr[] {
     if (!columns) {
       return []
     }
 
-    // Array syntax: ['id', 'name', 'age']
+    // Array syntax: ['id', 'name', 'age', Raw('...'), Case().when(...)]
     if (Array.isArray(columns)) {
-      return columns.map((col) => ({ type: 'column', name: col }))
+      return columns.map((col) => {
+        if (typeof col === 'string') {
+          return { type: 'column', name: col } as Expr
+        }
+        // Already an Expr object
+        return col
+      })
     }
 
-    // Object syntax: { userId: 'id', userName: 'name', userAge: 'age' }
-    // Alias: column expression, Value: alias
-    return Object.entries(columns).map(([alias, columnExpr]) => {
-      // Check if it's a SelectBuilder (subquery)
-      if (columnExpr && typeof columnExpr === 'object' && columnExpr.constructor?.name === 'SelectBuilder') {
-        return {
-          type: 'subquery',
-          query: columnExpr,
-          alias: alias,
-        }
+    // Object syntax: { alias: expr }
+    return Object.entries(columns).map(([alias, expr]) => {
+      let exprObj: Expr
+
+      if (typeof expr === 'string') {
+        exprObj = { type: 'column', name: expr } as Expr
+      } else if (expr.constructor?.name === 'SelectBuilder') {
+        const selectBuilder = expr as any as SelectBuilder
+        exprObj = { type: 'subquery', query: selectBuilder.getQuery() } as Expr
+      } else if (typeof expr === 'object' && 'type' in expr) {
+        // It's already an Expr object
+        exprObj = expr as Expr
+      } else {
+        throw new Error(`Invalid expression type for column "${alias}"`)
       }
-      return {
-        type: 'column',
-        name: columnExpr,
-        alias: alias,
-      }
+
+      // Add alias by spreading (create new object)
+      return { ...exprObj, alias } as Expr & { alias: string }
     })
   }
 
@@ -122,12 +137,12 @@ export class SelectBuilder {
   }
 
   // WHERE clauses
-  prewhere(input: WhereInput): this {
+  prewhere(input: WhereInput | RawExpr): this {
     this.query.prewhere = this.buildPredicate(input)
     return this
   }
 
-  where(input: WhereInput): this {
+  where(input: WhereInput | RawExpr): this {
     this.logger.debug('Adding WHERE clause', { input })
     const newPredicate = this.buildPredicate(input)
 
@@ -151,7 +166,7 @@ export class SelectBuilder {
   }
 
   // HAVING clause
-  having(input: WhereInput): this {
+  having(input: WhereInput | RawExpr): this {
     this.query.having = this.buildPredicate(input)
     return this
   }
@@ -275,7 +290,15 @@ export class SelectBuilder {
   }
 
   // Internal methods
-  private buildPredicate(input: WhereInput): PredicateNode {
+  private buildPredicate(input: WhereInput | RawExpr): PredicateNode {
+    // Special handling for Raw expressions used as predicates
+    if (typeof input === 'object' && 'type' in input && input.type === 'raw') {
+      return {
+        type: 'raw_predicate',
+        sql: (input as RawExpr).sql,
+      } as RawPredicate
+    }
+
     if (typeof input === 'object' && !Array.isArray(input) && 'type' in input) {
       // It's already a PredicateCombinator
       return this.combinatorToPredicate(input as PredicateCombinator)
@@ -399,6 +422,6 @@ export class SelectBuilder {
 // WhereInput is imported from core/operators
 
 // Factory function
-export function select(columns?: string[] | Record<string, string | any>): SelectBuilder {
+export function select(columns?: Array<string | Expr> | Record<string, string | Expr | SelectBuilder>): SelectBuilder {
   return new SelectBuilder(columns)
 }

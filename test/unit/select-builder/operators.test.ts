@@ -274,7 +274,7 @@ describe('Operators', () => {
       const operator = Raw("age > 18 AND status = 'active'")
       expect(operator).toEqual({
         type: 'raw',
-        value: "age > 18 AND status = 'active'",
+        sql: "age > 18 AND status = 'active'",
       })
     })
 
