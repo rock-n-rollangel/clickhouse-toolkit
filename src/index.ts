@@ -10,6 +10,7 @@ export * from './core/normalizer'
 export * from './core/operators'
 export * from './core/errors'
 export * from './core/logger'
+export * from './core/validator'
 export * from './core/predicate-builder'
 export * from './core/case-builder'
 
@@ -18,6 +19,7 @@ export * from './builder/select-builder'
 export * from './builder/insert-builder'
 export * from './builder/update-builder'
 export * from './builder/delete-builder'
+export * from './builder/base-builder'
 
 // Dialect exports
 export * from './dialect-ch/renderer'

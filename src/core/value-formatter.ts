@@ -197,16 +197,3 @@ export class ClickHouseValueFormatter implements ValueFormatter {
 
 // Singleton instance for global use
 export const valueFormatter = new ClickHouseValueFormatter()
-
-// Utility functions for backward compatibility
-export function formatValue(value: any): string {
-  return valueFormatter.formatValue(value)
-}
-
-export function injectValues(sql: string, values: any[]): string {
-  return valueFormatter.injectValues(sql, values)
-}
-
-export function escapeString(value: string): string {
-  return value.replace(/'/g, "''")
-}

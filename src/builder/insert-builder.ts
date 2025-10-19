@@ -3,19 +3,23 @@
  */
 
 import { InsertNode } from '../core/ast'
-import { QueryNormalizer } from '../core/normalizer'
 import { ClickHouseRenderer } from '../dialect-ch/renderer'
 import { createValidationError } from '../core/errors'
 import { QueryRunner } from '../runner/query-runner'
+import { Logger } from '../core/logger'
 import { DataFormat } from '@clickhouse/client'
+import { QueryBuilder } from './base-builder'
 
-export class InsertBuilder {
+export class InsertBuilder extends QueryBuilder<InsertNode> {
   private query: InsertNode
   private insertStrategy: 'values' | 'objects' | 'stream' = 'values'
   private objectData?: Array<Record<string, any>>
   private streamData?: NodeJS.ReadableStream
+  private renderer: ClickHouseRenderer
 
-  constructor(table: string) {
+  constructor(table: string, logger?: Logger) {
+    super(logger, 'InsertBuilder')
+    this.renderer = new ClickHouseRenderer(this.logger)
     this.query = {
       type: 'insert',
       table,
@@ -60,17 +64,23 @@ export class InsertBuilder {
     return this
   }
 
+  /**
+   * Get the underlying query node for the base class
+   */
+  protected getQueryNode(): InsertNode {
+    return this.query
+  }
+
   // Output methods
   toSQL(): { sql: string; params: any[] } {
     // Normalize AST to IR
-    const { normalized, validation } = QueryNormalizer.normalize(this.query)
+    const { normalized, validation } = this.normalizer.normalize(this.query)
 
-    if (!validation.valid) {
-      throw createValidationError(`Query validation failed: ${validation.errors.join(', ')}`, undefined, 'query')
-    }
+    // Use base class validation method
+    this.validateAndThrow(validation, 'toSQL')
 
     // Render IR to SQL using ClickHouse dialect
-    return ClickHouseRenderer.render(normalized)
+    return this.renderer.render(normalized)
   }
 
   async run(runner?: QueryRunner): Promise<void> {

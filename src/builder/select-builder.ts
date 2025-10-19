@@ -4,21 +4,23 @@
 
 import { SelectNode, PredicateNode, Expr, RawExpr, RawPredicate } from '../core/ast'
 import { Operator, PredicateCombinator, WhereInput } from '../core/operators'
-import { QueryNormalizer } from '../core/normalizer'
 import { ClickHouseRenderer } from '../dialect-ch/renderer'
 import { QueryRunner } from '../runner/query-runner'
 import { createValidationError } from '../core/errors'
-import { Logger, createLoggerContext } from '../core/logger'
+import { Logger } from '../core/logger'
+import { ValidationResult } from '../core/ir'
 import { operatorToPredicate, parseColumnRef } from '../core/predicate-builder'
 import { DataFormat, StreamableDataFormat } from '@clickhouse/client'
+import { QueryBuilder } from './base-builder'
 
-export class SelectBuilder {
+export class SelectBuilder extends QueryBuilder<SelectNode> {
   private query: SelectNode
-  private logger: Logger
   private subqueryAlias?: string
+  private renderer: ClickHouseRenderer
 
   constructor(columns?: Array<string | Expr> | Record<string, string | Expr | SelectBuilder>, logger?: Logger) {
-    this.logger = logger || createLoggerContext({ component: 'SelectBuilder' })
+    super(logger, 'SelectBuilder')
+    this.renderer = new ClickHouseRenderer(this.logger)
 
     this.logger.debug('Creating SELECT query', { columns })
 
@@ -47,6 +49,27 @@ export class SelectBuilder {
    * Get the internal query node (for normalization)
    */
   getQuery(): SelectNode {
+    return this.query
+  }
+
+  /**
+   * Validate an expression
+   */
+  validateExpression(expr: Expr): ValidationResult {
+    return this.validator.validateExpression(expr)
+  }
+
+  /**
+   * Validate a predicate
+   */
+  validatePredicate(predicate: PredicateNode): ValidationResult {
+    return this.validator.validatePredicate(predicate)
+  }
+
+  /**
+   * Get the underlying query node for the base class
+   */
+  protected getQueryNode(): SelectNode {
     return this.query
   }
 
@@ -212,15 +235,13 @@ export class SelectBuilder {
     this.logger.debug('Converting query to SQL')
 
     // Normalize AST to IR
-    const { normalized, validation } = QueryNormalizer.normalize(this.query)
+    const { normalized, validation } = this.normalizer.normalize(this.query)
 
-    if (!validation.valid) {
-      this.logger.error('Query validation failed', { errors: validation.errors })
-      throw createValidationError(`Query validation failed: ${validation.errors.join(', ')}`, undefined, 'query')
-    }
+    // Use base class validation method
+    this.validateAndThrow(validation, 'toSQL')
 
     // Render IR to SQL using ClickHouse dialect
-    const result = ClickHouseRenderer.render(normalized)
+    const result = this.renderer.render(normalized)
 
     this.logger.debug('Query converted to SQL', {
       sql: result.sql,

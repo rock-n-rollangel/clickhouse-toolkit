@@ -15,21 +15,29 @@ import {
   ValidationResult,
 } from './ir'
 import { ValidationError, createValidationError } from './errors'
-import { Logger, createLoggerContext } from './logger'
+import { Logger, LoggingComponent } from './logger'
+import { QueryValidator } from './validator'
 
-export class QueryNormalizer {
-  private static logger: Logger = createLoggerContext({ component: 'QueryNormalizer' })
+export class QueryNormalizer extends LoggingComponent {
+  private validator: QueryValidator
+
+  constructor(logger?: Logger) {
+    super(logger, 'QueryNormalizer')
+    this.validator = new QueryValidator(this.logger)
+  }
 
   /**
    * Normalize a query AST to IR
    */
-  static normalize(query: QueryNode): { normalized: QueryIR; validation: ValidationResult } {
-    const validation: ValidationResult = { valid: true, errors: [], warnings: [] }
+  normalize(query: QueryNode): { normalized: QueryIR; validation: ValidationResult } {
+    // Use the centralized validator
+    const validation = this.validator.validateQuery(query)
+
+    if (!validation.valid) {
+      return { normalized: {} as QueryIR, validation }
+    }
 
     try {
-      // Validate query structure
-      this.validateQuery(query)
-
       const normalized = this.normalizeQuery(query)
       return { normalized, validation }
     } catch (error) {
@@ -43,59 +51,7 @@ export class QueryNormalizer {
     }
   }
 
-  private static validateQuery(query: QueryNode): void {
-    // Validate table name
-    if (query.type === 'select' && query.from && typeof query.from.table === 'string') {
-      this.validateIdentifier(query.from.table, 'table')
-    }
-
-    // Validate column names
-    if (query.type === 'select' && query.columns) {
-      query.columns.forEach((col) => {
-        if (col.type === 'column') {
-          this.validateIdentifier(col.name, 'column')
-          if (col.table) {
-            this.validateIdentifier(col.table, 'table')
-          }
-        }
-      })
-    }
-
-    // Validate predicates (only for queries that support WHERE)
-    if ('where' in query && query.where) {
-      this.validatePredicate(query.where)
-    }
-  }
-
-  private static validatePredicate(predicate: PredicateNode): void {
-    if (predicate.type === 'predicate') {
-      if (predicate.left.type === 'column') {
-        // Skip validation for EXISTS/NOT EXISTS which don't have a left column
-        if (predicate.left.name !== '') {
-          this.validateIdentifier(predicate.left.name, 'column')
-          if (predicate.left.table) {
-            this.validateIdentifier(predicate.left.table, 'table')
-          }
-        }
-      }
-    } else if (predicate.type === 'and' || predicate.type === 'or') {
-      predicate.predicates.forEach((p) => this.validatePredicate(p))
-    } else if (predicate.type === 'not') {
-      this.validatePredicate(predicate.predicate)
-    }
-  }
-
-  private static validateIdentifier(identifier: string, type: string): void {
-    if (!identifier || typeof identifier !== 'string') {
-      throw createValidationError(`Invalid ${type} identifier: must be a non-empty string`, undefined, type, identifier)
-    }
-
-    // Allow any identifier - we'll escape it with backticks in the renderer
-    // This prevents SQL injection by properly escaping malicious identifiers
-    return
-  }
-
-  private static normalizeQuery(query: QueryNode): QueryIR {
+  private normalizeQuery(query: QueryNode): QueryIR {
     switch (query.type) {
       case 'select':
         return this.normalizeSelect(query)
@@ -115,7 +71,7 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizeSelect(query: any): QueryIR {
+  private normalizeSelect(query: any): QueryIR {
     const predicates = this.normalizePredicates(query.where)
     const prewherePredicates = this.normalizePredicates(query.prewhere).map((p) => ({ ...p, isPrewhere: true }))
 
@@ -144,7 +100,7 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizeInsert(query: any): QueryIR {
+  private normalizeInsert(query: any): QueryIR {
     return {
       type: 'insert',
       table: query.table,
@@ -157,7 +113,7 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizeUpdate(query: any): QueryIR {
+  private normalizeUpdate(query: any): QueryIR {
     return {
       type: 'update',
       table: query.table,
@@ -167,7 +123,7 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizeDelete(query: any): QueryIR {
+  private normalizeDelete(query: any): QueryIR {
     return {
       type: 'delete',
       table: query.table,
@@ -176,14 +132,14 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizePredicates(predicate?: PredicateNode): NormalizedPredicateNode[] {
+  private normalizePredicates(predicate?: PredicateNode): NormalizedPredicateNode[] {
     if (!predicate) return []
 
     const normalized = this.normalizePredicate(predicate)
     return [normalized]
   }
 
-  private static normalizePredicate(predicate: PredicateNode): NormalizedPredicateNode {
+  private normalizePredicate(predicate: PredicateNode): NormalizedPredicateNode {
     switch (predicate.type) {
       case 'predicate':
         return this.normalizeSimplePredicate(predicate)
@@ -209,7 +165,7 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizeSimplePredicate(predicate: Predicate): NormalizedPredicate {
+  private normalizeSimplePredicate(predicate: Predicate): NormalizedPredicate {
     return {
       type: 'predicate',
       left: this.normalizeColumnRef(predicate.left),
@@ -218,7 +174,7 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizeAndPredicate(predicate: AndPredicate): NormalizedAndPredicate {
+  private normalizeAndPredicate(predicate: AndPredicate): NormalizedAndPredicate {
     return {
       type: 'and',
       predicates: predicate.predicates.map((p) => this.normalizePredicate(p)),
@@ -226,28 +182,28 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizeOrPredicate(predicate: OrPredicate): NormalizedOrPredicate {
+  private normalizeOrPredicate(predicate: OrPredicate): NormalizedOrPredicate {
     return {
       type: 'or',
       predicates: predicate.predicates.map((p) => this.normalizePredicate(p)),
     }
   }
 
-  private static normalizeNotPredicate(predicate: NotPredicate): NormalizedNotPredicate {
+  private normalizeNotPredicate(predicate: NotPredicate): NormalizedNotPredicate {
     return {
       type: 'not',
       predicate: this.normalizePredicate(predicate.predicate),
     }
   }
 
-  private static normalizeColumnRef(expr: any): string {
+  private normalizeColumnRef(expr: any): string {
     if (expr.type === 'column') {
       return expr.table ? `${expr.table}.${expr.name}` : expr.name
     }
     throw createValidationError('Expected column reference', undefined, 'expression', expr)
   }
 
-  private static normalizeExpression(expr: Expr): ExprIR {
+  private normalizeExpression(expr: Expr): ExprIR {
     const alias = (expr as any).alias
 
     switch (expr.type) {
@@ -328,11 +284,11 @@ export class QueryNormalizer {
     }
   }
 
-  private static normalizeColumnWithAlias(expr: any): ExprIR {
+  private normalizeColumnWithAlias(expr: any): ExprIR {
     return this.normalizeExpression(expr)
   }
 
-  private static extractValue(expr: any): any {
+  private extractValue(expr: any): any {
     switch (expr.type) {
       case 'value':
         return expr.value
@@ -351,7 +307,7 @@ export class QueryNormalizer {
     }
   }
 
-  private static flattenAnd(predicate: AndPredicate): PredicateNode[] {
+  private flattenAnd(predicate: AndPredicate): PredicateNode[] {
     const result: PredicateNode[] = []
     for (const p of predicate.predicates) {
       if (p.type === 'and') {
@@ -363,7 +319,7 @@ export class QueryNormalizer {
     return result
   }
 
-  private static flattenOr(predicate: OrPredicate): PredicateNode[] {
+  private flattenOr(predicate: OrPredicate): PredicateNode[] {
     const result: PredicateNode[] = []
     for (const p of predicate.predicates) {
       if (p.type === 'or') {
@@ -375,7 +331,7 @@ export class QueryNormalizer {
     return result
   }
 
-  private static invertOperator(operator: string): string {
+  private invertOperator(operator: string): string {
     const inversions: Record<string, string> = {
       '=': '!=',
       '!=': '=',

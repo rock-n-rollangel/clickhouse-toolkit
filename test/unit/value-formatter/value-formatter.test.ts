@@ -4,13 +4,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals'
-import {
-  ClickHouseValueFormatter,
-  formatValue,
-  injectValues,
-  escapeString,
-  valueFormatter,
-} from '../../../src/core/value-formatter'
+import { ClickHouseValueFormatter, valueFormatter } from '../../../src/core/value-formatter'
 
 describe('ClickHouseValueFormatter', () => {
   let formatter: ClickHouseValueFormatter
@@ -409,61 +403,15 @@ describe('ClickHouseValueFormatter', () => {
   })
 })
 
-describe('Utility Functions', () => {
-  describe('formatValue', () => {
-    it('should use singleton formatter', () => {
-      const result = formatValue('test')
-      expect(result).toBe("'test'")
-    })
-
-    it('should handle different types', () => {
-      expect(formatValue(42)).toBe('42')
-      expect(formatValue(true)).toBe('true')
-      expect(formatValue(null)).toBe('NULL')
-    })
+describe('valueFormatter singleton', () => {
+  it('should be instance of ClickHouseValueFormatter', () => {
+    expect(valueFormatter).toBeInstanceOf(ClickHouseValueFormatter)
   })
 
-  describe('injectValues', () => {
-    it('should use singleton formatter', () => {
-      const sql = 'SELECT * FROM users WHERE id = ?'
-      const values = [1]
-      const result = injectValues(sql, values)
-      expect(result).toBe('SELECT * FROM users WHERE id = 1')
-    })
-  })
-
-  describe('escapeString', () => {
-    it('should escape single quotes', () => {
-      const result = escapeString("O'Connor")
-      expect(result).toBe("O''Connor")
-    })
-
-    it('should handle multiple single quotes', () => {
-      const result = escapeString("It's O'Connor's book")
-      expect(result).toBe("It''s O''Connor''s book")
-    })
-
-    it('should handle no single quotes', () => {
-      const result = escapeString('hello world')
-      expect(result).toBe('hello world')
-    })
-
-    it('should handle empty string', () => {
-      const result = escapeString('')
-      expect(result).toBe('')
-    })
-  })
-
-  describe('valueFormatter singleton', () => {
-    it('should be instance of ClickHouseValueFormatter', () => {
-      expect(valueFormatter).toBeInstanceOf(ClickHouseValueFormatter)
-    })
-
-    it('should work consistently', () => {
-      const result1 = valueFormatter.formatValue('test')
-      const result2 = valueFormatter.formatValue('test')
-      expect(result1).toBe(result2)
-      expect(result1).toBe("'test'")
-    })
+  it('should work consistently', () => {
+    const result1 = valueFormatter.formatValue('test')
+    const result2 = valueFormatter.formatValue('test')
+    expect(result1).toBe(result2)
+    expect(result1).toBe("'test'")
   })
 })

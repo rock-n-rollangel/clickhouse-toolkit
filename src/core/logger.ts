@@ -287,3 +287,16 @@ export function getGlobalLogger(): Logger {
 export function createLoggerContext(context?: Record<string, any>): LoggerContext {
   return new LoggerContext(globalLogger, context)
 }
+
+// Base class for all components that need logging
+export abstract class LoggingComponent {
+  protected logger: Logger
+
+  constructor(logger?: Logger, componentName?: string) {
+    this.logger =
+      logger ||
+      createLoggerContext({
+        component: componentName || this.constructor.name,
+      })
+  }
+}

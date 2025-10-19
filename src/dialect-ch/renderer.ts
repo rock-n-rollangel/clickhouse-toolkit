@@ -16,17 +16,19 @@ import {
 import { Primitive } from '../core/ast'
 import { createValidationError } from '../core/errors'
 import { ClickHouseValueFormatter } from '../core/value-formatter'
+import { Logger, LoggingComponent } from '../core/logger'
 
-export class ClickHouseRenderer {
-  private static valueFormatter = new ClickHouseValueFormatter()
+export class ClickHouseRenderer extends LoggingComponent {
+  private valueFormatter = new ClickHouseValueFormatter()
+
+  constructor(logger?: Logger) {
+    super(logger, 'ClickHouseRenderer')
+  }
 
   /**
    * Render a normalized query to SQL with direct value injection
    */
-  static render(query: QueryIR): { sql: string; params: Primitive[] } {
-    // For backward compatibility, we still return params array (empty)
-    // but values are now directly injected into SQL
-
+  render(query: QueryIR): { sql: string; params: Primitive[] } {
     switch (query.type) {
       case 'select':
         return this.renderSelect(query)
@@ -46,7 +48,7 @@ export class ClickHouseRenderer {
     }
   }
 
-  private static renderSelect(query: QueryIR): { sql: string; params: Primitive[] } {
+  private renderSelect(query: QueryIR): { sql: string; params: Primitive[] } {
     let sql = 'SELECT '
 
     // Columns
@@ -130,14 +132,15 @@ export class ClickHouseRenderer {
     return { sql, params: [] }
   }
 
-  private static renderInsert(query: QueryIR): { sql: string; params: Primitive[] } {
+  private renderInsert(query: QueryIR): { sql: string; params: Primitive[] } {
     let sql = `INSERT INTO ${this.quoteIdentifier(query.table)}`
 
     if (query.columns && query.columns.length > 0) {
       sql += ` (${query.columns
         .map((col) => {
           if (col.exprType === 'column') {
-            const colName = col.tableName ? `${col.tableName}.${col.columnName}` : col.columnName!
+            // TypeScript knows col.columnName exists for 'column' type
+            const colName = col.tableName ? `${col.tableName}.${col.columnName}` : col.columnName
             return this.quoteIdentifier(colName)
           }
           throw createValidationError(
@@ -165,7 +168,7 @@ export class ClickHouseRenderer {
     return { sql, params: [] }
   }
 
-  private static renderUpdate(query: QueryIR): { sql: string; params: Primitive[] } {
+  private renderUpdate(query: QueryIR): { sql: string; params: Primitive[] } {
     let sql = `ALTER TABLE ${this.quoteIdentifier(query.table)} UPDATE`
 
     // UPDATE clause (ClickHouse doesn't use SET keyword for ALTER TABLE UPDATE)
@@ -190,7 +193,7 @@ export class ClickHouseRenderer {
     return { sql, params: [] }
   }
 
-  private static renderDelete(query: QueryIR): { sql: string; params: Primitive[] } {
+  private renderDelete(query: QueryIR): { sql: string; params: Primitive[] } {
     let sql = `ALTER TABLE ${this.quoteIdentifier(query.table)} DELETE`
 
     if (query.predicates.length > 0) {
@@ -207,7 +210,7 @@ export class ClickHouseRenderer {
     return { sql, params: [] }
   }
 
-  private static renderPredicates(predicates: NormalizedPredicateNode[], isTopLevel: boolean = false): string {
+  private renderPredicates(predicates: NormalizedPredicateNode[], isTopLevel: boolean = false): string {
     if (predicates.length === 1) {
       return this.renderPredicateNode(predicates[0], isTopLevel)
     }
@@ -215,7 +218,7 @@ export class ClickHouseRenderer {
     return predicates.map((p) => this.renderPredicateNode(p, false)).join(' AND ')
   }
 
-  private static renderPredicateNode(predicate: NormalizedPredicateNode, isTopLevel: boolean = false): string {
+  private renderPredicateNode(predicate: NormalizedPredicateNode, isTopLevel: boolean = false): string {
     switch (predicate.type) {
       case 'predicate':
         return this.renderPredicate(predicate)
@@ -238,7 +241,7 @@ export class ClickHouseRenderer {
     }
   }
 
-  private static renderPredicate(predicate: NormalizedPredicate): string {
+  private renderPredicate(predicate: NormalizedPredicate): string {
     const left = predicate.left ? this.quoteIdentifier(predicate.left, 'predicate') : ''
     const right = this.formatPredicateRight(predicate.right)
 
@@ -293,7 +296,7 @@ export class ClickHouseRenderer {
     }
   }
 
-  private static formatPredicateRight(right: Primitive | Primitive[] | any): string {
+  private formatPredicateRight(right: Primitive | Primitive[] | any): string {
     // Handle subqueries
     if (right && typeof right === 'object' && right.__subquery) {
       const subquerySQL = this.renderSelect(right.__subquery).sql
@@ -317,7 +320,7 @@ export class ClickHouseRenderer {
     return this.valueFormatter.formatValue(right)
   }
 
-  private static renderAndPredicate(predicate: NormalizedAndPredicate, isTopLevel: boolean = false): string {
+  private renderAndPredicate(predicate: NormalizedAndPredicate, isTopLevel: boolean = false): string {
     const rendered = predicate.predicates.map((p) => this.renderPredicateNode(p)).join(' AND ')
     // Add parentheses for AND predicates created from combinators (And() function)
     // but only when they contain simple predicates (not nested OR/NOT) or when not at top level
@@ -336,27 +339,28 @@ export class ClickHouseRenderer {
     return rendered
   }
 
-  private static renderOrPredicate(predicate: NormalizedOrPredicate): string {
+  private renderOrPredicate(predicate: NormalizedOrPredicate): string {
     const rendered = predicate.predicates.map((p) => this.renderPredicateNode(p)).join(' OR ')
     return `(${rendered})`
   }
 
-  private static renderNotPredicate(predicate: NormalizedNotPredicate): string {
+  private renderNotPredicate(predicate: NormalizedNotPredicate): string {
     const rendered = this.renderPredicateNode(predicate.predicate)
     return `NOT (${rendered})`
   }
 
-  private static formatSettingValue(value: any): string {
+  private formatSettingValue(value: any): string {
     return this.valueFormatter.formatValue(value)
   }
 
   /**
    * Render expression from structured IR
    */
-  private static renderExpression(expr: ExprIR, context: 'select' | 'predicate' | 'function' = 'select'): string {
+  private renderExpression(expr: ExprIR, context: 'select' | 'predicate' | 'function' = 'select'): string {
     switch (expr.exprType) {
       case 'column':
-        const colName = expr.tableName ? `${expr.tableName}.${expr.columnName}` : expr.columnName!
+        // TypeScript knows expr.columnName exists for 'column' type
+        const colName = expr.tableName ? `${expr.tableName}.${expr.columnName}` : expr.columnName
         // Don't quote column names when they're function arguments
         if (context === 'function') {
           return colName
@@ -364,26 +368,26 @@ export class ClickHouseRenderer {
         return this.quoteIdentifier(colName, context)
 
       case 'raw':
-        // Raw SQL - pass through unescaped
-        return expr.rawSql!
+        // TypeScript knows expr.rawSql exists for 'raw' type
+        return expr.rawSql
 
       case 'function':
-        // Render function call from structure
-        const args = expr.functionArgs!.map((arg) => this.renderExpression(arg, 'function')).join(', ')
+        // TypeScript knows expr.functionName and expr.functionArgs exist for 'function' type
+        const args = expr.functionArgs.map((arg) => this.renderExpression(arg, 'function')).join(', ')
 
         // Special handling for CAST
-        if (expr.functionName === 'cast' && expr.functionArgs!.length === 2) {
-          const value = this.renderExpression(expr.functionArgs![0], 'function')
-          const type = this.renderExpression(expr.functionArgs![1], 'function')
+        if (expr.functionName === 'cast' && expr.functionArgs.length === 2) {
+          const value = this.renderExpression(expr.functionArgs[0], 'function')
+          const type = this.renderExpression(expr.functionArgs[1], 'function')
           return `CAST(${value} AS ${type})`
         }
 
         return `${expr.functionName}(${args})`
 
       case 'case':
-        // Render CASE from structure
-        const cases = expr
-          .caseCases!.map((c) => {
+        // TypeScript knows expr.caseCases exists for 'case' type
+        const cases = expr.caseCases
+          .map((c) => {
             const condition = this.renderPredicateNode(c.condition)
             const thenVal = this.renderExpression(c.then, 'select')
             return `WHEN ${condition} THEN ${thenVal}`
@@ -395,18 +399,22 @@ export class ClickHouseRenderer {
         return `CASE ${cases}${elseClause} END`
 
       case 'subquery':
-        const subquerySql = this.renderSelect(expr.subquery!).sql
+        // TypeScript knows expr.subquery exists for 'subquery' type
+        const subquerySql = this.renderSelect(expr.subquery).sql
         return `(${subquerySql})`
 
       case 'value':
+        // TypeScript knows expr.value exists for 'value' type
         return this.valueFormatter.formatValue(expr.value)
 
       case 'array':
-        const formatted = expr.values!.map((v) => this.valueFormatter.formatValue(v))
+        // TypeScript knows expr.values exists for 'array' type
+        const formatted = expr.values.map((v) => this.valueFormatter.formatValue(v))
         return `(${formatted.join(', ')})`
 
       case 'tuple':
-        const tupleVals = expr.values!.map((v) => this.valueFormatter.formatValue(v))
+        // TypeScript knows expr.values exists for 'tuple' type
+        const tupleVals = expr.values.map((v) => this.valueFormatter.formatValue(v))
         return `(${tupleVals.join(', ')})`
 
       default:
@@ -422,12 +430,12 @@ export class ClickHouseRenderer {
   /**
    * Render column expression (may be a simple column name or a function call) - DEPRECATED
    */
-  private static renderColumnExpression(expr: string): string {
+  private renderColumnExpression(expr: string): string {
     // Use quoteIdentifier which already handles functions vs simple columns
     return this.quoteIdentifier(expr, 'select')
   }
 
-  private static quoteIdentifier(identifier: string, context: 'select' | 'predicate' = 'select'): string {
+  private quoteIdentifier(identifier: string, context: 'select' | 'predicate' = 'select'): string {
     // Allow special identifiers like * (but quote function calls in predicates)
     if (identifier === '*') {
       return identifier

@@ -3,7 +3,7 @@
  */
 
 import { QueryRunner } from '../runner/query-runner'
-import { injectValues } from '../core/value-formatter'
+import { valueFormatter } from '../core/value-formatter'
 import { DriftDetection } from './drift-detection'
 import { Migration, FileMigration, MigrationStep } from './migration'
 import { MigrationPlan } from './migration-plan'
@@ -553,7 +553,7 @@ export class Migrator {
       VALUES (?, ?, ?, ?, ?)
     `
 
-    const sqlWithValues = injectValues(sql, [
+    const sqlWithValues = valueFormatter.injectValues(sql, [
       migrationId,
       new Date()
         .toISOString()
@@ -568,7 +568,7 @@ export class Migrator {
 
   private async removeMigrationRecord(id: string): Promise<void> {
     const sql = `DELETE FROM ${this.options.migrationsTableName} WHERE id = ?`
-    const sqlWithValues = injectValues(sql, [id])
+    const sqlWithValues = valueFormatter.injectValues(sql, [id])
     await this.runner.command({ sql: sqlWithValues })
   }
 }

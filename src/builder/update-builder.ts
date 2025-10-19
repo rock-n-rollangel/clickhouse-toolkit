@@ -8,12 +8,22 @@ import { QueryNormalizer } from '../core/normalizer'
 import { ClickHouseRenderer } from '../dialect-ch/renderer'
 import { createValidationError } from '../core/errors'
 import { QueryRunner } from '../runner/query-runner'
+import { Logger, LoggingComponent } from '../core/logger'
+import { QueryValidator } from '../core/validator'
+import { ValidationResult } from '../core/ir'
 import { operatorToPredicate, parseColumnRef } from '../core/predicate-builder'
 
-export class UpdateBuilder {
+export class UpdateBuilder extends LoggingComponent {
   private query: UpdateNode
+  private normalizer: QueryNormalizer
+  private renderer: ClickHouseRenderer
+  private validator: QueryValidator
 
-  constructor(table: string) {
+  constructor(table: string, logger?: Logger) {
+    super(logger, 'UpdateBuilder')
+    this.normalizer = new QueryNormalizer(this.logger)
+    this.renderer = new ClickHouseRenderer(this.logger)
+    this.validator = new QueryValidator(this.logger)
     this.query = {
       type: 'update',
       table,
@@ -39,17 +49,24 @@ export class UpdateBuilder {
     return this
   }
 
+  /**
+   * Validate the current query
+   */
+  validate(): ValidationResult {
+    return this.validator.validateQuery(this.query)
+  }
+
   // Output methods
   toSQL(): { sql: string; params: any[] } {
     // Normalize AST to IR
-    const { normalized, validation } = QueryNormalizer.normalize(this.query)
+    const { normalized, validation } = this.normalizer.normalize(this.query)
 
     if (!validation.valid) {
       throw createValidationError(`Query validation failed: ${validation.errors.join(', ')}`, undefined, 'query')
     }
 
     // Render IR to SQL using ClickHouse dialect
-    return ClickHouseRenderer.render(normalized)
+    return this.renderer.render(normalized)
   }
 
   async run(runner?: QueryRunner): Promise<void> {

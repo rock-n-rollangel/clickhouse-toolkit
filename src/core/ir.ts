@@ -5,41 +5,7 @@
 
 import { Primitive } from './ast'
 
-export interface ExprIR {
-  exprType: 'column' | 'raw' | 'function' | 'case' | 'value' | 'subquery' | 'array' | 'tuple'
-  alias?: string
-
-  // For columns
-  columnName?: string
-  tableName?: string
-
-  // For raw SQL
-  rawSql?: string
-
-  // For function calls (keep structured!)
-  functionName?: string
-  functionArgs?: ExprIR[]
-
-  // For CASE expressions (keep structured!)
-  caseCases?: Array<{ condition: NormalizedPredicateNode; then: ExprIR }>
-  caseElse?: ExprIR
-
-  // For values
-  value?: Primitive
-
-  // For arrays/tuples
-  values?: Primitive[]
-
-  // For subqueries - will be defined after QueryIR
-  subquery?: QueryIR
-}
-
-// Keep ColumnIR for backward compatibility
-export interface ColumnIR {
-  column: string
-  alias?: string
-}
-
+// Forward declarations to break circular dependencies
 export interface QueryIR {
   type: 'select' | 'insert' | 'update' | 'delete'
   table: string
@@ -105,6 +71,63 @@ export type NormalizedPredicateNode =
   | NormalizedOrPredicate
   | NormalizedNotPredicate
   | RawPredicateIR
+
+interface BaseExprIR {
+  alias?: string
+}
+
+interface ColumnExprIR extends BaseExprIR {
+  exprType: 'column'
+  columnName: string
+  tableName?: string
+}
+
+interface RawExprIR extends BaseExprIR {
+  exprType: 'raw'
+  rawSql: string
+}
+
+interface FunctionExprIR extends BaseExprIR {
+  exprType: 'function'
+  functionName: string
+  functionArgs: ExprIR[]
+}
+
+interface CaseExprIR extends BaseExprIR {
+  exprType: 'case'
+  caseCases: Array<{ condition: NormalizedPredicateNode; then: ExprIR }>
+  caseElse?: ExprIR
+}
+
+interface ValueExprIR extends BaseExprIR {
+  exprType: 'value'
+  value: Primitive
+}
+
+interface SubqueryExprIR extends BaseExprIR {
+  exprType: 'subquery'
+  subquery: QueryIR
+}
+
+interface ArrayExprIR extends BaseExprIR {
+  exprType: 'array'
+  values: Primitive[]
+}
+
+interface TupleExprIR extends BaseExprIR {
+  exprType: 'tuple'
+  values: Primitive[]
+}
+
+export type ExprIR =
+  | ColumnExprIR
+  | RawExprIR
+  | FunctionExprIR
+  | CaseExprIR
+  | ValueExprIR
+  | SubqueryExprIR
+  | ArrayExprIR
+  | TupleExprIR
 
 export interface NormalizedQuery {
   type: 'select' | 'insert' | 'update' | 'delete'

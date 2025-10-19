@@ -511,17 +511,6 @@ describe('SelectBuilder', () => {
 
       expect(sql).toBe("SELECT `id` AS `userId`, count(*) AS `orderCount` FROM `orders` WHERE `status` = 'completed'")
     })
-
-    it('should maintain backward compatibility with array syntax', () => {
-      const query1 = select(['id', 'name']).from('users')
-      const query2 = select({ id: 'id', name: 'name' }).from('users')
-
-      const { sql: sql1 } = query1.toSQL()
-      const { sql: sql2 } = query2.toSQL()
-
-      expect(sql1).toBe('SELECT `id`, `name` FROM `users`')
-      expect(sql2).toBe('SELECT `id` AS `id`, `name` AS `name` FROM `users`')
-    })
   })
 
   describe('SQL Injection Prevention', () => {
