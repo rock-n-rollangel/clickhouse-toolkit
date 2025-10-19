@@ -4,7 +4,25 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
-import { select, Eq, EqCol, Gt, Lt, Like, In, And, Or, Not, Count, Sum, Avg, Upper } from '../../../src/index'
+import {
+  select,
+  Eq,
+  EqCol,
+  Gt,
+  Lt,
+  Like,
+  In,
+  And,
+  Or,
+  Not,
+  Count,
+  Sum,
+  Avg,
+  Upper,
+  Case,
+  Raw,
+  Value,
+} from '../../../src/index'
 
 // Mock QueryRunner for testing
 const mockQueryRunner = {
@@ -574,6 +592,63 @@ describe('SelectBuilder', () => {
       expect(sql).toBe(
         "SELECT `id`, `name` FROM `users` WHERE `id` > 1 AND `active` = true AND `score` > 85.5 AND `created_at` > '2023-01-01 00:00:00'",
       )
+    })
+  })
+
+  describe('Case Expression Integration', () => {
+    it('should integrate Case expressions in SELECT columns', () => {
+      const userStatus = Case()
+        .when({ status: Eq('active') }, Value('Active User'))
+        .when({ status: Eq('pending') }, Value('Pending User'))
+        .else(Value('Inactive User'))
+
+      const query = select({
+        id: 'id',
+        name: 'name',
+        status: userStatus,
+      }).from('users')
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toContain('CASE')
+      expect(sql).toContain("WHEN `status` = 'active' THEN 'Active User'")
+      expect(sql).toContain("WHEN `status` = 'pending' THEN 'Pending User'")
+      expect(sql).toContain("ELSE 'Inactive User'")
+      expect(sql).toContain('END AS `status`')
+    })
+
+    it('should integrate Case with aggregate functions', () => {
+      const conditionalCount = Case()
+        .when({ category: Eq('premium') }, Count())
+        .else(Raw('0'))
+
+      const query = select({
+        category: 'category',
+        count: conditionalCount,
+      })
+        .from('orders')
+        .groupBy(['category'])
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toContain('CASE')
+      expect(sql).toContain('count(*)')
+      expect(sql).toContain('GROUP BY')
+    })
+
+    it('should handle nested Case expressions in SELECT', () => {
+      const innerCase = Case()
+        .when({ type: Eq('premium') }, Value('Premium'))
+        .else(Value('Regular'))
+
+      const userCategory = Case()
+        .when({ active: Eq(1) }, innerCase)
+        .else(Value('Inactive'))
+
+      expect(userCategory.type).toBe('case')
+      expect((userCategory as any).cases).toHaveLength(1)
+      expect((userCategory as any).cases[0].then).toEqual(innerCase)
+      expect((userCategory as any).cases[0].then.type).toBe('case')
     })
   })
 })

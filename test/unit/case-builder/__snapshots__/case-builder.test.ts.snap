@@ -1,0 +1,54 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`CaseBuilder Real-world Examples should handle status mapping (numeric to string) 1`] = `
+[
+  {
+    "left": {
+      "name": "status_code",
+      "type": "column",
+    },
+    "operator": "=",
+    "right": {
+      "type": "value",
+      "value": 1,
+    },
+    "type": "predicate",
+  },
+  {
+    "left": {
+      "name": "status_code",
+      "type": "column",
+    },
+    "operator": "=",
+    "right": {
+      "type": "value",
+      "value": 2,
+    },
+    "type": "predicate",
+  },
+  {
+    "left": {
+      "name": "status_code",
+      "type": "column",
+    },
+    "operator": "=",
+    "right": {
+      "type": "value",
+      "value": 3,
+    },
+    "type": "predicate",
+  },
+  {
+    "left": {
+      "name": "status_code",
+      "type": "column",
+    },
+    "operator": "=",
+    "right": {
+      "type": "value",
+      "value": 0,
+    },
+    "type": "predicate",
+  },
+]
+`;
