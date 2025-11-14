@@ -357,6 +357,37 @@ describe('CaseBuilder', () => {
 
       expect(result.cases[0].condition).toBe(predicateNode)
     })
+
+    it('should handle field named "type" in WhereInput conditions', () => {
+      // This test verifies the fix for the bug where fields named "type"
+      // were incorrectly identified as PredicateNode objects
+      const result = Case()
+        .when({ type: Eq('VOLUME') }, Raw('toDecimal64(100, 4)'))
+        .when({ type: Eq('PRESSURE') }, Raw('toDecimal32(50, 4)'))
+        .when({ type: Eq('TEMPERATURE') }, Raw('toDecimal32(25, 4)'))
+        .else(Raw('toDecimal32(0, 4)'))
+
+      expect(result.cases).toHaveLength(3)
+      // Verify that the condition is properly converted from WhereInput to PredicateNode
+      expect(result.cases[0].condition).toMatchObject({
+        type: 'predicate',
+        left: { type: 'column', name: 'type' },
+        operator: '=',
+        right: { type: 'value', value: 'VOLUME' },
+      })
+      expect(result.cases[1].condition).toMatchObject({
+        type: 'predicate',
+        left: { type: 'column', name: 'type' },
+        operator: '=',
+        right: { type: 'value', value: 'PRESSURE' },
+      })
+      expect(result.cases[2].condition).toMatchObject({
+        type: 'predicate',
+        left: { type: 'column', name: 'type' },
+        operator: '=',
+        right: { type: 'value', value: 'TEMPERATURE' },
+      })
+    })
   })
 
   describe('Real-world Examples', () => {
