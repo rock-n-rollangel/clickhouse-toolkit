@@ -115,6 +115,54 @@ describe('SelectBuilder', () => {
       expect(sql).toBe("SELECT `id`, `name` FROM `users` WHERE `status` IN ('active', 'pending')")
     })
 
+    it('should build WHERE clause with field named "type"', () => {
+      // This test verifies the fix for the bug where fields named "type"
+      // were incorrectly identified as PredicateCombinator objects
+      const query = select(['id', 'name', 'value'])
+        .from('sensors')
+        .where({ type: Eq('VOLUME') })
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe("SELECT `id`, `name`, `value` FROM `sensors` WHERE `type` = 'VOLUME'")
+    })
+
+    it('should build WHERE clause with field named "type" and multiple conditions', () => {
+      const query = select(['id', 'name', 'value'])
+        .from('sensors')
+        .where({
+          type: Eq('PRESSURE'),
+          value: Gt(100),
+        })
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe("SELECT `id`, `name`, `value` FROM `sensors` WHERE `type` = 'PRESSURE' AND `value` > 100")
+    })
+
+    it('should build WHERE clause with field named "type" using In operator', () => {
+      const query = select(['id', 'name', 'value'])
+        .from('sensors')
+        .where({ type: In(['VOLUME', 'PRESSURE', 'TEMPERATURE']) })
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe(
+        "SELECT `id`, `name`, `value` FROM `sensors` WHERE `type` IN ('VOLUME', 'PRESSURE', 'TEMPERATURE')",
+      )
+    })
+
+    it('should build multiple WHERE clauses with field named "type"', () => {
+      const query = select(['id', 'name', 'value'])
+        .from('sensors')
+        .where({ type: Eq('VOLUME') })
+        .where({ value: Gt(50) })
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe("SELECT `id`, `name`, `value` FROM `sensors` WHERE `type` = 'VOLUME' AND `value` > 50")
+    })
+
     it('should build multiple WHERE clauses', () => {
       const query = select(['id', 'name'])
         .from('users')
@@ -179,6 +227,29 @@ describe('SelectBuilder', () => {
       const { sql } = query.toSQL()
 
       expect(sql).toBe("SELECT `id`, `name` FROM `users` WHERE `status` = 'active' AND (`age` > 18 OR `age` < 65)")
+    })
+
+    it('should build OR clause with field named "type"', () => {
+      // This test verifies that combinators work correctly with fields named "type"
+      const query = select(['id', 'name', 'value'])
+        .from('sensors')
+        .where(Or({ type: Eq('VOLUME') }, { type: Eq('PRESSURE') }))
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe("SELECT `id`, `name`, `value` FROM `sensors` WHERE (`type` = 'VOLUME' OR `type` = 'PRESSURE')")
+    })
+
+    it('should build complex nested clauses with field named "type"', () => {
+      const query = select(['id', 'name', 'value'])
+        .from('sensors')
+        .where(And({ type: Eq('VOLUME') }, Or({ value: Gt(100) }, { value: Lt(10) })))
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe(
+        "SELECT `id`, `name`, `value` FROM `sensors` WHERE `type` = 'VOLUME' AND (`value` > 100 OR `value` < 10)",
+      )
     })
   })
 

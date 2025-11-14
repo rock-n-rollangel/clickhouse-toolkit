@@ -9,7 +9,7 @@ import { QueryRunner } from '../runner/query-runner'
 import { createValidationError } from '../core/errors'
 import { Logger } from '../core/logger'
 import { ValidationResult } from '../core/ir'
-import { operatorToPredicate, parseColumnRef } from '../core/predicate-builder'
+import { operatorToPredicate, parseColumnRef, isPredicateCombinator } from '../core/predicate-builder'
 import { DataFormat, StreamableDataFormat } from '@clickhouse/client'
 import { QueryBuilder } from './base-builder'
 
@@ -319,22 +319,20 @@ export class SelectBuilder extends QueryBuilder<SelectNode> {
       } as RawPredicate
     }
 
-    if (typeof input === 'object' && !Array.isArray(input) && 'type' in input) {
-      // It's already a PredicateCombinator
-      return this.combinatorToPredicate(input as PredicateCombinator)
+    // Check if it's a PredicateCombinator using the shared utility function
+    // This properly handles cases where a database field is named 'type'
+    if (isPredicateCombinator(input)) {
+      return this.combinatorToPredicate(input)
     }
 
     // It's a record of column -> operator/combinator mappings
     const record = input as Record<string, Operator | PredicateCombinator>
     const predicates = Object.entries(record).map(([column, operatorOrCombinator]) => {
-      // Check if the value is a combinator
-      if (
-        typeof operatorOrCombinator === 'object' &&
-        'type' in operatorOrCombinator &&
-        'predicates' in operatorOrCombinator
-      ) {
+      // Check if the value is a combinator using the shared utility function
+      // This properly handles cases where a database field is named 'type'
+      if (isPredicateCombinator(operatorOrCombinator)) {
         // It's a combinator - apply it to the column
-        return this.applyColumnToCombinator(column, operatorOrCombinator as PredicateCombinator)
+        return this.applyColumnToCombinator(column, operatorOrCombinator)
       }
       // It's a regular operator
       return operatorToPredicate(column, operatorOrCombinator as Operator, parseColumnRef)
@@ -353,13 +351,13 @@ export class SelectBuilder extends QueryBuilder<SelectNode> {
   private applyColumnToCombinator(column: string, combinator: PredicateCombinator): PredicateNode {
     // Convert each predicate in the combinator to apply to the specific column
     const predicates = combinator.predicates.map((pred) => {
-      // Check if it's a nested combinator
-      if (typeof pred === 'object' && 'type' in pred && 'predicates' in pred) {
+      // Check if it's a nested combinator using the shared utility function
+      if (isPredicateCombinator(pred)) {
         // It's a nested combinator - recursively apply the column
-        return this.applyColumnToCombinator(column, pred as PredicateCombinator)
+        return this.applyColumnToCombinator(column, pred)
       }
-      // Check if it's a WhereInput (Record)
-      if (typeof pred === 'object' && !('type' in pred)) {
+      // Check if it's a WhereInput (Record) - if it's not a combinator and not an Operator, it's a WhereInput
+      if (typeof pred === 'object' && !isPredicateCombinator(pred) && !('type' in pred && 'value' in pred)) {
         // It's a record - build it normally
         return this.buildPredicate(pred)
       }

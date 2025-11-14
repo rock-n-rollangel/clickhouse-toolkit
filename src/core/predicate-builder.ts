@@ -4,7 +4,7 @@
  */
 
 import { ColumnRef, PredicateNode } from './ast'
-import { Operator } from './operators'
+import { Operator, PredicateCombinator } from './operators'
 import { createValidationError } from './errors'
 
 /**
@@ -17,6 +17,82 @@ export function parseColumnRef(column: string): ColumnRef {
     return { type: 'column', name, table }
   }
   return { type: 'column', name: column }
+}
+
+/**
+ * Checks if an object is a valid PredicateNode by verifying:
+ * 1. It has a 'type' property that is a string
+ * 2. The type is one of the valid PredicateNode types
+ * 3. The object has the expected structure for that type
+ *
+ * This function properly handles cases where a database field is named 'type'
+ * by checking that obj.type is a string (not an Operator object).
+ */
+export function isPredicateNode(obj: any): obj is PredicateNode {
+  if (!obj || typeof obj !== 'object') {
+    return false
+  }
+
+  // Critical check: obj.type must be a string, not an object (like an Operator)
+  // This handles the case where a database field is named 'type':
+  // { type: Eq('VOLUME') } has obj.type as an Operator object, not a string
+  if (!('type' in obj) || typeof obj.type !== 'string') {
+    return false
+  }
+
+  const type = obj.type
+
+  // Check if type is one of the valid PredicateNode types
+  switch (type) {
+    case 'predicate':
+      // Predicate must have left, operator, and right
+      return 'left' in obj && 'operator' in obj && 'right' in obj
+    case 'and':
+    case 'or':
+      // And/Or must have predicates array
+      return 'predicates' in obj && Array.isArray(obj.predicates)
+    case 'not':
+      // Not must have predicate
+      return 'predicate' in obj
+    case 'raw_predicate':
+      // RawPredicate must have sql
+      return 'sql' in obj && typeof obj.sql === 'string'
+    default:
+      // Not a valid PredicateNode type
+      return false
+  }
+}
+
+/**
+ * Checks if an object is a PredicateCombinator by verifying:
+ * 1. It has a 'type' property that is a string
+ * 2. The type is 'and', 'or', or 'not'
+ * 3. The object has a 'predicates' array
+ *
+ * This function properly handles cases where a database field is named 'type'
+ * by checking that obj.type is a string (not an Operator object).
+ */
+export function isPredicateCombinator(obj: any): obj is PredicateCombinator {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    return false
+  }
+
+  // Critical check: obj.type must be a string, not an object (like an Operator)
+  // This handles the case where a database field is named 'type':
+  // { type: Eq('VOLUME') } has obj.type as an Operator object, not a string
+  if (!('type' in obj) || typeof obj.type !== 'string') {
+    return false
+  }
+
+  const type = obj.type
+
+  // Check if type is one of the valid PredicateCombinator types
+  if (type !== 'and' && type !== 'or' && type !== 'not') {
+    return false
+  }
+
+  // Must have predicates array
+  return 'predicates' in obj && Array.isArray(obj.predicates)
 }
 
 /**
