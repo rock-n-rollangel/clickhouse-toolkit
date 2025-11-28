@@ -42,7 +42,7 @@ jobs:
           done
 
       - run: npm ci
-      - run: npm test
+      - run: USE_NOOP_LOGGER=true npm test
       - run: npm run build
       
 
