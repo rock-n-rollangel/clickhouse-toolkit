@@ -117,6 +117,10 @@ export interface SelectNode {
   final?: boolean
   settings?: Record<string, any>
   format?: string
+  setOperations?: Array<{
+    type: 'union' | 'union_all'
+    query: SelectNode
+  }>
 }
 
 export interface InsertNode {
@@ -125,6 +129,7 @@ export interface InsertNode {
   columns: string[]
   values: Primitive[][]
   format?: string
+  select?: SelectNode
 }
 
 export interface UpdateNode {

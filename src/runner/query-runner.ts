@@ -13,7 +13,7 @@ import {
   createConnectionError,
   createValidationError,
 } from '../core/errors'
-import { Logger, LoggerContext, createLoggerContext } from '../core/logger'
+import { Logger, LoggerContext, createLoggerContext, setGlobalLogger } from '../core/logger'
 
 export interface QueryRunnerOptions {
   url: string
@@ -54,6 +54,11 @@ export class QueryRunner {
 
   constructor(options: QueryRunnerOptions) {
     this.options = options
+
+    if (this.options.logger) {
+      setGlobalLogger(this.options.logger)
+    }
+
     this.logger = createLoggerContext({ component: 'QueryRunner' })
 
     this.logger.info('Initializing QueryRunner', {

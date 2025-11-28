@@ -722,4 +722,27 @@ describe('SelectBuilder', () => {
       expect((userCategory as any).cases[0].then.type).toBe('case')
     })
   })
+
+  describe('Set Operations', () => {
+    it('should build UNION queries', () => {
+      const query = select(['id'])
+        .from('users')
+        .union(select(['id']).from('archived_users'))
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe('SELECT `id` FROM `users` UNION SELECT `id` FROM `archived_users`')
+    })
+
+    it('should build UNION ALL queries with final ordering', () => {
+      const query = select(['id'])
+        .from('users')
+        .unionAll(select(['id']).from('orders'))
+        .orderBy([{ column: 'id', direction: 'DESC' }])
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe('SELECT `id` FROM `users` UNION ALL SELECT `id` FROM `orders` ORDER BY `id` DESC')
+    })
+  })
 })

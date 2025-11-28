@@ -477,4 +477,19 @@ describe('SelectBuilder E2E Tests', () => {
       }
     })
   })
+
+  describe('Set Operations', () => {
+    it('should execute UNION ALL queries', async () => {
+      const results = await select(['id'])
+        .from('users')
+        .unionAll(select(['id']).from('orders'))
+        .orderBy([{ column: 'id', direction: 'ASC' }])
+        .run<any>(queryRunner)
+
+      expect(results.length).toBeGreaterThan(0)
+      results.forEach((row) => {
+        expect(typeof row.id === 'number').toBe(true)
+      })
+    })
+  })
 })

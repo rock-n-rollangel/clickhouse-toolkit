@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import { insertInto, InsertBuilder } from '../../../src/builder/insert-builder'
+import { select } from '../../../src/builder/select-builder'
 
 // Mock QueryRunner for testing
 const mockQueryRunner = {
@@ -149,6 +150,32 @@ describe('InsertBuilder', () => {
       const query = insertInto('users').columns(['name', 'email']).value(['John Doe', 'john@example.com'])
 
       await expect(query.run()).rejects.toThrow('QueryRunner is required to execute queries')
+    })
+  })
+
+  describe('Insert from Select', () => {
+    it('should build INSERT ... SELECT queries', () => {
+      const sourceQuery = select(['id', 'name']).from('users')
+
+      const query = insertInto('archived_users').columns(['id', 'name']).fromSelect(sourceQuery)
+
+      const { sql } = query.toSQL()
+
+      expect(sql).toBe('INSERT INTO `archived_users` (`id`, `name`) SELECT `id`, `name` FROM `users`')
+    })
+
+    it('should execute INSERT ... SELECT operations', async () => {
+      const sourceQuery = select(['id']).from('users')
+      const query = insertInto('archived_users').columns(['id']).fromSelect(sourceQuery)
+
+      mockQueryRunner.command.mockResolvedValue(undefined)
+
+      await query.run(mockQueryRunner)
+
+      expect(mockQueryRunner.command).toHaveBeenCalledWith({
+        sql: 'INSERT INTO `archived_users` (`id`) SELECT `id` FROM `users`',
+        format: undefined,
+      })
     })
   })
 

@@ -48,7 +48,38 @@ export class ClickHouseRenderer extends LoggingComponent {
     }
   }
 
-  private renderSelect(query: QueryIR): { sql: string; params: Primitive[] } {
+  private renderSelect(query: QueryIR, wrapForSetOp: boolean = false): { sql: string; params: Primitive[] } {
+    const baseSql = this.renderSelectBody(query)
+    const trailing = this.renderSelectTrailingClauses(query)
+    const hasSetOperations = Array.isArray(query.setOperations) && query.setOperations.length > 0
+
+    let sql = baseSql
+
+    if (hasSetOperations) {
+      // For UNION operations, don't wrap individual SELECTs - ClickHouse doesn't allow parentheses
+      // Also, trailing clauses (ORDER BY, LIMIT) should only apply to the final UNION result
+      for (const op of query.setOperations!) {
+        // Render only the SELECT body for unioned queries (no trailing clauses)
+        const unionedSql = this.renderSelectBody(op.query)
+        const keyword = op.type === 'union_all' ? 'UNION ALL' : 'UNION'
+        sql += ` ${keyword} ${unionedSql}`
+      }
+
+      // Apply trailing clauses to the entire UNION result
+      sql += trailing
+    } else {
+      sql += trailing
+    }
+
+    // Only wrap the entire query if it's being used as a subquery
+    if (wrapForSetOp && !sql.startsWith('(')) {
+      sql = this.wrapSelectSegment(sql)
+    }
+
+    return { sql, params: [] }
+  }
+
+  private renderSelectBody(query: QueryIR): string {
     let sql = 'SELECT '
 
     // Columns
@@ -103,12 +134,16 @@ export class ClickHouseRenderer extends LoggingComponent {
       sql += ' HAVING ' + this.renderPredicates(query.having)
     }
 
-    // ORDER BY
+    return sql
+  }
+
+  private renderSelectTrailingClauses(query: QueryIR): string {
+    let sql = ''
+
     if (query.orderBy && query.orderBy.length > 0) {
       sql += ' ORDER BY ' + query.orderBy.map((o) => `${this.quoteIdentifier(o.column)} ${o.direction}`).join(', ')
     }
 
-    // LIMIT
     if (query.limit) {
       sql += ` LIMIT ${query.limit}`
       if (query.offset) {
@@ -116,12 +151,10 @@ export class ClickHouseRenderer extends LoggingComponent {
       }
     }
 
-    // FINAL
     if (query.final) {
       sql += ' FINAL'
     }
 
-    // SETTINGS
     if (query.settings) {
       const settings = Object.entries(query.settings)
         .map(([key, value]) => `${key} = ${this.formatSettingValue(value)}`)
@@ -129,7 +162,11 @@ export class ClickHouseRenderer extends LoggingComponent {
       sql += ` SETTINGS ${settings}`
     }
 
-    return { sql, params: [] }
+    return sql
+  }
+
+  private wrapSelectSegment(sql: string): string {
+    return `(${sql})`
   }
 
   private renderInsert(query: QueryIR): { sql: string; params: Primitive[] } {
@@ -153,14 +190,19 @@ export class ClickHouseRenderer extends LoggingComponent {
         .join(', ')})`
     }
 
-    sql += ' VALUES'
+    if (query.selectSource) {
+      const selectSql = this.renderSelect(query.selectSource).sql
+      sql += ` ${selectSql}`
+    } else {
+      sql += ' VALUES'
 
-    const values = query.values || []
-    if (values.length > 0) {
-      const valueRows = values.map(
-        (row: any[]) => `(${row.map((val) => this.valueFormatter.formatValue(val)).join(', ')})`,
-      )
-      sql += ' ' + valueRows.join(', ')
+      const values = query.values || []
+      if (values.length > 0) {
+        const valueRows = values.map(
+          (row: any[]) => `(${row.map((val) => this.valueFormatter.formatValue(val)).join(', ')})`,
+        )
+        sql += ' ' + valueRows.join(', ')
+      }
     }
 
     return { sql, params: [] }
@@ -296,8 +338,8 @@ export class ClickHouseRenderer extends LoggingComponent {
 
   private formatPredicateRight(right: Primitive | Primitive[] | any): string {
     if (right && typeof right === 'object' && right.__subquery) {
-      const subquerySQL = this.renderSelect(right.__subquery).sql
-      return `(${subquerySQL})`
+      const subquerySql = this.renderSelect(right.__subquery).sql
+      return `(${subquerySql})`
     }
     if (right && typeof right === 'object' && right.type === 'column') {
       return this.quoteIdentifier(right.table ? `${right.table}.${right.name}` : right.name, 'predicate')

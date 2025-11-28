@@ -97,6 +97,10 @@ export class QueryNormalizer extends LoggingComponent {
       })),
       groupBy: query.groupBy?.map((col: any) => this.normalizeColumnRef(col)),
       having: query.having ? this.normalizePredicates(query.having) : undefined,
+      setOperations: query.setOperations?.map((op: any) => ({
+        type: op.type,
+        query: this.normalizeSelect(op.query),
+      })),
     }
   }
 
@@ -110,6 +114,7 @@ export class QueryNormalizer extends LoggingComponent {
       })),
       values: query.values,
       predicates: [],
+      selectSource: query.select ? this.normalizeSelect(query.select) : undefined,
     }
   }
 

@@ -23,6 +23,10 @@ export interface QueryIR {
     alias?: string
     on: NormalizedPredicateNode
   }>
+  setOperations?: Array<{
+    type: 'union' | 'union_all'
+    query: QueryIR
+  }>
   with?: Array<{
     alias: string
     query: QueryIR
@@ -31,6 +35,7 @@ export interface QueryIR {
   having?: NormalizedPredicateNode[]
   values?: Array<Primitive[]>
   set?: Record<string, Primitive>
+  selectSource?: QueryIR
 }
 
 export interface NormalizedPredicate {

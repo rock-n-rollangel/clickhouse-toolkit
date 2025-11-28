@@ -798,4 +798,55 @@ describe('InsertBuilder E2E Tests', () => {
       })
     })
   })
+
+  describe('Insert from Select', () => {
+    it('should insert rows using SELECT source', async () => {
+      const sourceTable = `${testTableName}_source`
+      const targetTable = `${testTableName}_target`
+
+      // Create source and target tables
+      for (const tableName of [sourceTable, targetTable]) {
+        await queryRunner.command({
+          sql: `
+            CREATE TABLE ${DEFAULT_TEST_CONFIG.database}.${tableName} (
+              id UInt32,
+              name String
+            ) ENGINE = MergeTree() ORDER BY id
+          `,
+        })
+      }
+
+      // Seed source table
+      await insertInto(sourceTable)
+        .columns(['id', 'name'])
+        .values([
+          [1, 'Source User 1'],
+          [2, 'Source User 2'],
+        ])
+        .run(queryRunner)
+
+      // Copy data into target table using INSERT ... SELECT
+      await insertInto(targetTable)
+        .columns(['id', 'name'])
+        .fromSelect(select(['id', 'name']).from(sourceTable))
+        .run(queryRunner)
+
+      // Verify data copied
+      const results = await select(['*'])
+        .from(targetTable)
+        .orderBy([{ column: 'id', direction: 'ASC' }])
+        .run<any>(queryRunner)
+
+      expect(results).toHaveLength(2)
+      expect(results[0].name).toBe('Source User 1')
+      expect(results[1].name).toBe('Source User 2')
+
+      // Clean up
+      for (const tableName of [sourceTable, targetTable]) {
+        await queryRunner.command({
+          sql: `DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${tableName}`,
+        })
+      }
+    })
+  })
 })

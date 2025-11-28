@@ -8,6 +8,7 @@ import { Case } from '../../../src/core/case-builder'
 import { CaseExpr } from '../../../src/core/ast'
 import { Eq, Gt, Lt, In, IsNull, IsNotNull, Like, EqCol, Lte } from '../../../src/core/operators'
 import { Count, Sum, Concat, Upper, Raw, Column, Value } from '../../../src/index'
+import { select } from '../../../src/builder/select-builder'
 
 describe('CaseBuilder', () => {
   describe('Basic Functionality Tests', () => {
@@ -207,6 +208,24 @@ describe('CaseBuilder', () => {
 
       expect(result.cases[0].then).toEqual(Raw('NOW()'))
       expect(result.else).toEqual(Raw('NULL'))
+    })
+
+    it('should support SelectBuilder instances as then/else expressions', () => {
+      const thenSubquery = select(['id']).from('users')
+      const elseSubquery = select(['*']).from('archived_users')
+
+      const result = Case()
+        .when({ status: Eq('active') }, thenSubquery)
+        .else(elseSubquery)
+
+      expect(result.cases[0].then).toMatchObject({
+        type: 'subquery',
+        query: thenSubquery.getQuery(),
+      })
+      expect(result.else).toMatchObject({
+        type: 'subquery',
+        query: elseSubquery.getQuery(),
+      })
     })
 
     it('should handle column-to-column comparisons with EqCol', () => {

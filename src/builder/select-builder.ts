@@ -202,6 +202,20 @@ export class SelectBuilder extends QueryBuilder<SelectNode> {
     return this
   }
 
+  /**
+   * UNION (distinct) with another SELECT query
+   */
+  union(selectQuery: SelectBuilder): this {
+    return this.addSetOperation('union', selectQuery)
+  }
+
+  /**
+   * UNION ALL with another SELECT query
+   */
+  unionAll(selectQuery: SelectBuilder): this {
+    return this.addSetOperation('union_all', selectQuery)
+  }
+
   // LIMIT clause
   limit(n: number, offset?: number): this {
     this.query.limit = n
@@ -346,6 +360,23 @@ export class SelectBuilder extends QueryBuilder<SelectNode> {
       type: 'and',
       predicates,
     }
+  }
+
+  private addSetOperation(type: 'union' | 'union_all', selectQuery: SelectBuilder): this {
+    if (!selectQuery || typeof selectQuery.getQuery !== 'function') {
+      throw createValidationError('A SelectBuilder instance is required for UNION operations', undefined, 'union')
+    }
+
+    if (!this.query.setOperations) {
+      this.query.setOperations = []
+    }
+
+    this.query.setOperations.push({
+      type,
+      query: selectQuery.getQuery(),
+    })
+
+    return this
   }
 
   private applyColumnToCombinator(column: string, combinator: PredicateCombinator): PredicateNode {
