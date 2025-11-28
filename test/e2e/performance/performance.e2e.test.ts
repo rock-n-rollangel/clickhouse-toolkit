@@ -187,16 +187,12 @@ describe('Performance E2E Tests', () => {
         queryPromises.push(promise)
       }
 
-      const startTime = Date.now()
       const results = await Promise.all(queryPromises)
-      const executionTime = Date.now() - startTime
 
       expect(results).toHaveLength(concurrentQueries)
       results.forEach((result) => {
         expect(result.length).toBe(5) // 5 departments
       })
-
-      console.log(`Concurrent queries completed in ${executionTime}ms`)
     })
   })
 
@@ -216,8 +212,6 @@ describe('Performance E2E Tests', () => {
       expect(results.length).toBeGreaterThan(0)
       expect(results.length).toBeLessThanOrEqual(1000)
       expect(executionTime).toBeLessThan(5000) // Should complete within 5 seconds
-
-      console.log(`Large SELECT query completed in ${executionTime}ms, returned ${results.length} rows`)
     })
 
     it('should handle large INSERT operations efficiently', async () => {
@@ -252,8 +246,6 @@ describe('Performance E2E Tests', () => {
       expect(parseInt(countResults[0]['count()'])).toBe(5000)
       expect(executionTime).toBeLessThan(10000) // Should complete within 10 seconds
 
-      console.log(`Large INSERT completed in ${executionTime}ms`)
-
       // Clean up
       await queryRunner.command({
         sql: `DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${insertTableName}`,
@@ -282,8 +274,6 @@ describe('Performance E2E Tests', () => {
       for (let i = 1; i < results.length; i++) {
         expect(results[i].id).toBeGreaterThan(results[i - 1].id)
       }
-
-      console.log(`ORDER BY optimized query completed in ${executionTime}ms`)
     })
 
     it('should handle range queries efficiently', async () => {
@@ -309,8 +299,6 @@ describe('Performance E2E Tests', () => {
         expect(result.id).toBeLessThanOrEqual(2000)
         expect(result.department).toBe('dept1')
       })
-
-      console.log(`Range query completed in ${executionTime}ms`)
     })
 
     it('should handle IN clause efficiently', async () => {
@@ -337,8 +325,6 @@ describe('Performance E2E Tests', () => {
         expect(result.age).toBeGreaterThanOrEqual(25)
         expect(result.age).toBeLessThanOrEqual(35)
       })
-
-      console.log(`IN clause query completed in ${executionTime}ms`)
     })
   })
 
@@ -379,12 +365,6 @@ describe('Performance E2E Tests', () => {
 
       expect(results.length).toBe(5) // 5 departments
       expect(executionTime).toBeGreaterThan(0)
-
-      // Log performance metrics
-      console.log(`Query Performance Metrics:`)
-      console.log(`- Execution time: ${executionTime}ms`)
-      console.log(`- Result rows: ${results.length}`)
-      console.log(`- Rows per second: ${Math.round(results.length / (executionTime / 1000))}`)
     })
 
     it('should handle performance regression detection', async () => {
@@ -406,16 +386,9 @@ describe('Performance E2E Tests', () => {
 
       const avgTime = executionTimes.reduce((sum, time) => sum + time, 0) / iterations
       const maxTime = Math.max(...executionTimes)
-      const minTime = Math.min(...executionTimes)
 
       expect(avgTime).toBeGreaterThan(0)
       expect(maxTime).toBeLessThan(avgTime * 3) // No execution should be more than 3x average
-
-      console.log(`Performance Consistency Test:`)
-      console.log(`- Average execution time: ${avgTime.toFixed(2)}ms`)
-      console.log(`- Min execution time: ${minTime}ms`)
-      console.log(`- Max execution time: ${maxTime}ms`)
-      console.log(`- Variance: ${(((maxTime - minTime) / avgTime) * 100).toFixed(2)}%`)
     })
   })
 })

@@ -6,6 +6,7 @@
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { QueryRunner } from '../../../src/runner/query-runner'
+import { Logger, NoOpLogger } from '../../../src/core/logger'
 
 const execAsync = promisify(exec)
 
@@ -16,6 +17,7 @@ export interface TestConfig {
   database: string
   containerName: string
   useExternalClickHouse?: boolean // Skip Docker container management
+  logger?: Logger
 }
 
 export const DEFAULT_TEST_CONFIG: TestConfig = {
@@ -25,6 +27,7 @@ export const DEFAULT_TEST_CONFIG: TestConfig = {
   database: process.env.CLICKHOUSE_DATABASE || 'test_db',
   containerName: 'migrations',
   useExternalClickHouse: process.env.USE_EXTERNAL_CLICKHOUSE === 'true',
+  logger: process.env.USE_NOOP_LOGGER === 'true' ? new NoOpLogger() : undefined,
 }
 
 export class ClickHouseTestSetup {
@@ -40,17 +43,10 @@ export class ClickHouseTestSetup {
    */
   async startClickHouse(): Promise<void> {
     if (this.config.useExternalClickHouse) {
-      console.log('Using external ClickHouse instance...')
-      console.log(`  URL: ${this.config.url}`)
-      console.log(`  Database: ${this.config.database}`)
-
       // Just verify connection to external instance
       await this.waitForClickHouse(10)
-      console.log('✅ Connected to external ClickHouse successfully')
       return
     }
-
-    console.log('Starting ClickHouse container for e2e tests...')
 
     try {
       // Stop any existing container
@@ -63,8 +59,6 @@ export class ClickHouseTestSetup {
 
       // Wait for ClickHouse to be ready
       await this.waitForClickHouse()
-
-      console.log('ClickHouse container started successfully')
     } catch (error) {
       throw new Error(`Failed to start ClickHouse container: ${error}`)
     }
@@ -75,7 +69,6 @@ export class ClickHouseTestSetup {
    */
   async stopClickHouse(): Promise<void> {
     if (this.config.useExternalClickHouse) {
-      console.log('Skipping Docker container cleanup (using external ClickHouse)')
       return
     }
 
@@ -221,8 +214,6 @@ export class ClickHouseTestSetup {
         (6, 5, 'Laptop', 999.99, 'completed', now())
       `,
     })
-
-    console.log('Test data setup completed')
   }
 
   /**
@@ -241,9 +232,7 @@ export class ClickHouseTestSetup {
       await runner.command({
         sql: `DROP TABLE IF EXISTS ${this.config.database}.users`,
       })
-    } catch (error) {
-      console.warn('Error during cleanup:', error)
-    }
+    } catch {}
   }
 
   /**
@@ -263,8 +252,6 @@ export class ClickHouseTestSetup {
       const keepData = process.env.KEEP_TEST_DATA === 'true'
       if (!keepData) {
         await this.cleanupTestData()
-      } else {
-        console.log('⚠️  Keeping test data (KEEP_TEST_DATA=true)')
       }
     } else {
       await this.cleanupTestData()
