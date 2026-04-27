@@ -36,6 +36,7 @@ export interface QueryIR {
   values?: Array<Primitive[]>
   set?: Record<string, Primitive>
   selectSource?: QueryIR
+  windows?: Record<string, NormalizedWindowSpec>
 }
 
 export interface NormalizedPredicate {
@@ -124,6 +125,35 @@ interface TupleExprIR extends BaseExprIR {
   values: Primitive[]
 }
 
+export interface NormalizedFrameBoundLiteral {
+  kind: 'literal'
+  value: 'UNBOUNDED PRECEDING' | 'CURRENT ROW' | 'UNBOUNDED FOLLOWING'
+}
+
+export interface NormalizedFrameBoundOffset {
+  kind: 'preceding' | 'following'
+  offset: number
+}
+
+export type NormalizedFrameBound = NormalizedFrameBoundLiteral | NormalizedFrameBoundOffset
+
+export interface NormalizedWindowSpec {
+  partitionBy?: string[]
+  orderBy?: Array<{ column: string; direction: 'ASC' | 'DESC' }>
+  frame?: {
+    type: 'ROWS' | 'RANGE'
+    start: NormalizedFrameBound
+    end?: NormalizedFrameBound
+  }
+}
+
+export interface WindowExprIR extends BaseExprIR {
+  exprType: 'window'
+  fn: ExprIR
+  ref: { kind: 'inline'; spec: NormalizedWindowSpec } | { kind: 'named'; name: string }
+  alias?: string
+}
+
 export type ExprIR =
   | ColumnExprIR
   | RawExprIR
@@ -133,6 +163,7 @@ export type ExprIR =
   | SubqueryExprIR
   | ArrayExprIR
   | TupleExprIR
+  | WindowExprIR
 
 export interface NormalizedQuery {
   type: 'select' | 'insert' | 'update' | 'delete'

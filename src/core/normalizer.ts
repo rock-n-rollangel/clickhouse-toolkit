@@ -101,6 +101,11 @@ export class QueryNormalizer extends LoggingComponent {
         type: op.type,
         query: this.normalizeSelect(op.query),
       })),
+      windows: query.windows
+        ? Object.fromEntries(
+            Object.entries(query.windows).map(([name, spec]) => [name, this.normalizeWindowSpec(spec as any)]),
+          )
+        : undefined,
     }
   }
 
@@ -276,6 +281,17 @@ export class QueryNormalizer extends LoggingComponent {
           alias,
         }
 
+      case 'window':
+        return {
+          exprType: 'window',
+          fn: this.normalizeExpression(expr.fn),
+          ref:
+            'name' in expr.ref
+              ? { kind: 'named', name: expr.ref.name }
+              : { kind: 'inline', spec: this.normalizeWindowSpec(expr.ref) },
+          alias,
+        }
+
       default:
         throw createValidationError(
           `Unsupported expression type: ${(expr as any).type}`,
@@ -345,5 +361,32 @@ export class QueryNormalizer extends LoggingComponent {
       'NOT LIKE': 'LIKE',
     }
     return inversions[operator] || operator
+  }
+
+  private normalizeWindowSpec(spec: import('./ast').WindowSpec): import('./ir').NormalizedWindowSpec {
+    return {
+      partitionBy: spec.partitionBy,
+      orderBy: spec.orderBy?.map((o) => ({
+        column: this.normalizeColumnRef(o.column),
+        direction: o.direction,
+      })),
+      frame: spec.frame
+        ? {
+            type: spec.frame.type,
+            start: this.normalizeFrameBound(spec.frame.start),
+            end: spec.frame.end ? this.normalizeFrameBound(spec.frame.end) : undefined,
+          }
+        : undefined,
+    }
+  }
+
+  private normalizeFrameBound(b: import('./ast').FrameBound): import('./ir').NormalizedFrameBound {
+    if (typeof b === 'string') {
+      return { kind: 'literal', value: b }
+    }
+    if ('preceding' in b) {
+      return { kind: 'preceding', offset: b.preceding }
+    }
+    return { kind: 'following', offset: b.following }
   }
 }
