@@ -93,9 +93,12 @@ export class QueryNormalizer extends LoggingComponent {
       settings: query.settings,
       joins: query.joins?.map((j: any) => ({
         type: j.type,
+        strictness: j.strictness,
+        global: j.global,
         table: typeof j.table === 'string' ? j.table : 'subquery',
         alias: j.alias,
-        on: this.normalizePredicate(j.on),
+        on: j.on ? this.normalizePredicate(j.on) : undefined,
+        using: j.using,
       })),
       groupBy: query.groupBy?.map((col: any) => this.normalizeColumnRef(col)),
       having: query.having ? this.normalizePredicates(query.having) : undefined,

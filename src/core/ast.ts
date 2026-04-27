@@ -110,11 +110,17 @@ export interface WindowExpression {
   alias?: string
 }
 
+export type JoinKind = 'inner' | 'left' | 'right' | 'full' | 'cross'
+export type JoinStrictness = 'any' | 'asof' | 'semi' | 'anti'
+
 export interface JoinSpec {
-  type: 'inner' | 'left' | 'right' | 'full'
+  type: JoinKind
+  strictness?: JoinStrictness
+  global?: boolean
   table: string | Subquery
   alias?: string
-  on: PredicateNode
+  on?: PredicateNode
+  using?: string[]
 }
 
 export interface WithClause {

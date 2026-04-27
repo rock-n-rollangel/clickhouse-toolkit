@@ -18,10 +18,13 @@ export interface QueryIR {
   final?: boolean
   settings?: Record<string, any>
   joins?: Array<{
-    type: 'inner' | 'left' | 'right' | 'full'
+    type: 'inner' | 'left' | 'right' | 'full' | 'cross'
+    strictness?: 'any' | 'asof' | 'semi' | 'anti'
+    global?: boolean
     table: string
     alias?: string
-    on: NormalizedPredicateNode
+    on?: NormalizedPredicateNode
+    using?: string[]
   }>
   setOperations?: Array<{
     type: 'union' | 'union_all'
@@ -175,7 +178,7 @@ export interface NormalizedQuery {
   final?: boolean
   settings?: Record<string, any>
   joins?: Array<{
-    type: 'inner' | 'left' | 'right' | 'full'
+    type: 'inner' | 'left' | 'right' | 'full' | 'cross'
     table: string
     alias?: string
     on: NormalizedPredicate
