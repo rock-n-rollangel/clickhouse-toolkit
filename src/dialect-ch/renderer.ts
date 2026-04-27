@@ -12,6 +12,9 @@ import {
   NormalizedAndPredicate,
   NormalizedOrPredicate,
   NormalizedNotPredicate,
+  NormalizedWindowSpec,
+  NormalizedFrameBound,
+  WindowExprIR,
 } from '../core/ir'
 import { Primitive } from '../core/ast'
 import { createValidationError } from '../core/errors'
@@ -20,6 +23,7 @@ import { Logger, LoggingComponent } from '../core/logger'
 
 export class ClickHouseRenderer extends LoggingComponent {
   private valueFormatter = new ClickHouseValueFormatter()
+  private declaredWindows: Set<string> = new Set()
 
   constructor(logger?: Logger) {
     super(logger, 'ClickHouseRenderer')
@@ -80,65 +84,79 @@ export class ClickHouseRenderer extends LoggingComponent {
   }
 
   private renderSelectBody(query: QueryIR): string {
-    let sql = 'SELECT '
+    const previousWindows = this.declaredWindows
+    this.declaredWindows = new Set(query.windows ? Object.keys(query.windows) : [])
 
-    // Columns
-    if (query.columns && query.columns.length > 0) {
-      sql += query.columns
-        .map((col) => {
-          const columnExpr = this.renderExpression(col, 'select')
-          return col.alias ? `${columnExpr} AS ${this.quoteIdentifier(col.alias)}` : columnExpr
-        })
-        .join(', ')
-    } else {
-      sql += '*'
-    }
+    try {
+      let sql = 'SELECT '
 
-    // FROM
-    if (query.table) {
-      const tableName = this.quoteIdentifier(query.table)
-      const alias = query.tableAlias ? ` AS ${this.quoteIdentifier(query.tableAlias)}` : ''
-      sql += ` FROM ${tableName}${alias}`
-    }
-
-    // JOIN clauses
-    if (query.joins && query.joins.length > 0) {
-      for (const join of query.joins) {
-        const joinType = join.type.toUpperCase()
-        const tableName = this.quoteIdentifier(join.table)
-        const alias = join.alias ? ` AS ${this.quoteIdentifier(join.alias)}` : ''
-        const onClause = this.renderPredicateNode(join.on)
-        sql += ` ${joinType} JOIN ${tableName}${alias} ON ${onClause}`
+      // Columns
+      if (query.columns && query.columns.length > 0) {
+        sql += query.columns
+          .map((col) => {
+            const columnExpr = this.renderExpression(col, 'select')
+            return col.alias ? `${columnExpr} AS ${this.quoteIdentifier(col.alias)}` : columnExpr
+          })
+          .join(', ')
+      } else {
+        sql += '*'
       }
-    }
 
-    // PREWHERE
-    const prewherePredicates = query.predicates.filter((p) => 'isPrewhere' in p && p.isPrewhere)
-    if (prewherePredicates.length > 0) {
-      sql += ' PREWHERE ' + this.renderPredicates(prewherePredicates)
-    }
+      // FROM
+      if (query.table) {
+        const tableName = this.quoteIdentifier(query.table)
+        const alias = query.tableAlias ? ` AS ${this.quoteIdentifier(query.tableAlias)}` : ''
+        sql += ` FROM ${tableName}${alias}`
+      }
 
-    // WHERE
-    const wherePredicates = query.predicates.filter((p) => !('isPrewhere' in p && p.isPrewhere))
-    if (wherePredicates.length > 0) {
-      sql += ' WHERE ' + this.renderPredicates(wherePredicates, true)
-    }
+      // JOIN clauses
+      if (query.joins && query.joins.length > 0) {
+        for (const join of query.joins) {
+          const joinType = join.type.toUpperCase()
+          const tableName = this.quoteIdentifier(join.table)
+          const alias = join.alias ? ` AS ${this.quoteIdentifier(join.alias)}` : ''
+          const onClause = this.renderPredicateNode(join.on)
+          sql += ` ${joinType} JOIN ${tableName}${alias} ON ${onClause}`
+        }
+      }
 
-    // GROUP BY
-    if (query.groupBy && query.groupBy.length > 0) {
-      sql += ' GROUP BY ' + query.groupBy.map((col) => this.quoteIdentifier(col)).join(', ')
-    }
+      // PREWHERE
+      const prewherePredicates = query.predicates.filter((p) => 'isPrewhere' in p && p.isPrewhere)
+      if (prewherePredicates.length > 0) {
+        sql += ' PREWHERE ' + this.renderPredicates(prewherePredicates)
+      }
 
-    // HAVING
-    if (query.having && query.having.length > 0) {
-      sql += ' HAVING ' + this.renderPredicates(query.having)
-    }
+      // WHERE
+      const wherePredicates = query.predicates.filter((p) => !('isPrewhere' in p && p.isPrewhere))
+      if (wherePredicates.length > 0) {
+        sql += ' WHERE ' + this.renderPredicates(wherePredicates, true)
+      }
 
-    return sql
+      // GROUP BY
+      if (query.groupBy && query.groupBy.length > 0) {
+        sql += ' GROUP BY ' + query.groupBy.map((col) => this.quoteIdentifier(col)).join(', ')
+      }
+
+      // HAVING
+      if (query.having && query.having.length > 0) {
+        sql += ' HAVING ' + this.renderPredicates(query.having)
+      }
+
+      return sql
+    } finally {
+      this.declaredWindows = previousWindows
+    }
   }
 
   private renderSelectTrailingClauses(query: QueryIR): string {
     let sql = ''
+
+    if (query.windows && Object.keys(query.windows).length > 0) {
+      const windowDecls = Object.entries(query.windows)
+        .map(([name, spec]) => `${name} AS (${this.renderWindowSpec(spec)})`)
+        .join(', ')
+      sql += ` WINDOW ${windowDecls}`
+    }
 
     if (query.orderBy && query.orderBy.length > 0) {
       sql += ' ORDER BY ' + query.orderBy.map((o) => `${this.quoteIdentifier(o.column)} ${o.direction}`).join(', ')
@@ -449,6 +467,10 @@ export class ClickHouseRenderer extends LoggingComponent {
         const tupleVals = expr.values.map((v) => this.valueFormatter.formatValue(v))
         return `(${tupleVals.join(', ')})`
 
+      case 'window': {
+        return this.renderWindowExpr(expr as WindowExprIR)
+      }
+
       default:
         throw createValidationError(
           `Unsupported expression type: ${(expr as any).exprType}`,
@@ -457,6 +479,85 @@ export class ClickHouseRenderer extends LoggingComponent {
           (expr as any).exprType,
         )
     }
+  }
+
+  private renderWindowExpr(expr: WindowExprIR): string {
+    const fnSql = this.renderExpression(expr.fn, 'select')
+    if (expr.ref.kind === 'named') {
+      if (!this.declaredWindows.has(expr.ref.name)) {
+        throw createValidationError(
+          `Window '${expr.ref.name}' referenced but not declared via .window()`,
+          undefined,
+          'window',
+          expr.ref.name,
+        )
+      }
+      return `${fnSql} OVER ${expr.ref.name}`
+    }
+    this.validateFrameBoundOrder(expr.ref.spec)
+    return `${fnSql} OVER (${this.renderWindowSpec(expr.ref.spec)})`
+  }
+
+  private validateFrameBoundOrder(spec: NormalizedWindowSpec): void {
+    if (!spec.frame || !spec.frame.end) return
+    const s = spec.frame.start
+    const e = spec.frame.end
+    if (s.kind === 'following' && e.kind === 'preceding') {
+      throw createValidationError(
+        'Window frame end cannot be PRECEDING when start is FOLLOWING',
+        undefined,
+        'frame',
+        spec.frame,
+      )
+    }
+    if (s.kind === 'preceding' && e.kind === 'preceding' && e.offset > s.offset) {
+      throw createValidationError(
+        'Window frame end PRECEDING offset must be <= start PRECEDING offset',
+        undefined,
+        'frame',
+        spec.frame,
+      )
+    }
+    if (s.kind === 'following' && e.kind === 'following' && e.offset < s.offset) {
+      throw createValidationError(
+        'Window frame end FOLLOWING offset must be >= start FOLLOWING offset',
+        undefined,
+        'frame',
+        spec.frame,
+      )
+    }
+  }
+
+  private renderWindowSpec(spec: NormalizedWindowSpec): string {
+    const parts: string[] = []
+
+    if (spec.partitionBy && spec.partitionBy.length > 0) {
+      parts.push(`PARTITION BY ${spec.partitionBy.map((c) => this.quoteIdentifier(c)).join(', ')}`)
+    }
+
+    if (spec.orderBy && spec.orderBy.length > 0) {
+      parts.push(
+        `ORDER BY ${spec.orderBy.map((o) => `${this.quoteIdentifier(o.column)} ${o.direction}`).join(', ')}`,
+      )
+    }
+
+    if (spec.frame) {
+      const start = this.renderFrameBound(spec.frame.start)
+      if (spec.frame.end) {
+        const end = this.renderFrameBound(spec.frame.end)
+        parts.push(`${spec.frame.type} BETWEEN ${start} AND ${end}`)
+      } else {
+        parts.push(`${spec.frame.type} ${start}`)
+      }
+    }
+
+    return parts.join(' ')
+  }
+
+  private renderFrameBound(b: NormalizedFrameBound): string {
+    if (b.kind === 'literal') return b.value
+    if (b.kind === 'preceding') return `${b.offset} PRECEDING`
+    return `${b.offset} FOLLOWING`
   }
 
   /**
