@@ -283,13 +283,18 @@ export type Overable<T extends FunctionCall> = T & {
 
 function withOver<T extends FunctionCall>(fn: T): Overable<T> {
   const result = fn as Overable<T>
-  ;(result as any).over = function (refOrName: WindowSpec | string): WindowExpression {
-    return {
-      type: 'window',
-      fn: this as FunctionCall,
-      ref: typeof refOrName === 'string' ? { name: refOrName } : refOrName,
-    }
-  }
+  Object.defineProperty(result, 'over', {
+    value: function (refOrName: WindowSpec | string): WindowExpression {
+      return {
+        type: 'window',
+        fn: this as FunctionCall,
+        ref: typeof refOrName === 'string' ? { name: refOrName } : refOrName,
+      }
+    },
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  })
   return result
 }
 
