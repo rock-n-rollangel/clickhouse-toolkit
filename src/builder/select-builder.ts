@@ -2,7 +2,7 @@
  * Fluent DSL for SELECT queries
  */
 
-import { SelectNode, PredicateNode, Expr, RawExpr, RawPredicate } from '../core/ast'
+import { SelectNode, PredicateNode, Expr, RawExpr, RawPredicate, WindowSpec } from '../core/ast'
 import { Operator, PredicateCombinator, WhereInput } from '../core/operators'
 import { ClickHouseRenderer } from '../dialect-ch/renderer'
 import { QueryRunner } from '../runner/query-runner'
@@ -228,6 +228,14 @@ export class SelectBuilder extends QueryBuilder<SelectNode> {
   // ClickHouse-specific
   final(): this {
     this.query.final = true
+    return this
+  }
+
+  window(name: string, spec: WindowSpec): this {
+    if (!this.query.windows) {
+      this.query.windows = {}
+    }
+    this.query.windows[name] = spec
     return this
   }
 
