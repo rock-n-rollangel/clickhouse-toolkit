@@ -545,9 +545,7 @@ export class ClickHouseRenderer extends LoggingComponent {
     }
 
     if (spec.orderBy && spec.orderBy.length > 0) {
-      parts.push(
-        `ORDER BY ${spec.orderBy.map((o) => `${this.quoteIdentifier(o.column)} ${o.direction}`).join(', ')}`,
-      )
+      parts.push(`ORDER BY ${spec.orderBy.map((o) => `${this.quoteIdentifier(o.column)} ${o.direction}`).join(', ')}`)
     }
 
     if (spec.frame) {
@@ -591,12 +589,7 @@ export class ClickHouseRenderer extends LoggingComponent {
     }
 
     if (!join.on) {
-      throw createValidationError(
-        'JOIN must have either ON or USING',
-        undefined,
-        'join',
-        { type: join.type },
-      )
+      throw createValidationError('JOIN must have either ON or USING', undefined, 'join', { type: join.type })
     }
     return `${prefix} JOIN ${tableName}${alias} ON ${this.renderPredicateNode(join.on)}`
   }
@@ -627,12 +620,10 @@ export class ClickHouseRenderer extends LoggingComponent {
       case 'asof':
         if (type === 'inner') return `${globalStr}ASOF`
         if (type === 'left') return `${globalStr}ASOF LEFT`
-        throw createValidationError(
-          `ASOF JOIN is only valid with INNER or LEFT, got ${kindUpper}`,
-          undefined,
-          'join',
-          { type, strictness },
-        )
+        throw createValidationError(`ASOF JOIN is only valid with INNER or LEFT, got ${kindUpper}`, undefined, 'join', {
+          type,
+          strictness,
+        })
       case 'semi':
         if (type !== 'left') {
           throw createValidationError(

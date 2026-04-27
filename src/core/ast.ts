@@ -49,7 +49,16 @@ export interface CaseExpr {
   else?: Expr
 }
 
-export type Expr = ColumnRef | Value | ArrayValue | TupleValue | Subquery | RawExpr | FunctionCall | CaseExpr | WindowExpression
+export type Expr =
+  | ColumnRef
+  | Value
+  | ArrayValue
+  | TupleValue
+  | Subquery
+  | RawExpr
+  | FunctionCall
+  | CaseExpr
+  | WindowExpression
 
 export interface Predicate {
   type: 'predicate'

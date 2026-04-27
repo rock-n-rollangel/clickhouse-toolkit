@@ -3,7 +3,18 @@
  * Simplifies boolean logic, validates identifiers, resolves types
  */
 
-import { QueryNode, PredicateNode, AndPredicate, OrPredicate, NotPredicate, Predicate, Expr, RawPredicate, WindowSpec, FrameBound } from './ast'
+import {
+  QueryNode,
+  PredicateNode,
+  AndPredicate,
+  OrPredicate,
+  NotPredicate,
+  Predicate,
+  Expr,
+  RawPredicate,
+  WindowSpec,
+  FrameBound,
+} from './ast'
 import {
   QueryIR,
   ExprIR,
