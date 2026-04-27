@@ -3,7 +3,7 @@
  * Simplifies boolean logic, validates identifiers, resolves types
  */
 
-import { QueryNode, PredicateNode, AndPredicate, OrPredicate, NotPredicate, Predicate, Expr, RawPredicate } from './ast'
+import { QueryNode, PredicateNode, AndPredicate, OrPredicate, NotPredicate, Predicate, Expr, RawPredicate, WindowSpec, FrameBound } from './ast'
 import {
   QueryIR,
   ExprIR,
@@ -12,6 +12,8 @@ import {
   NormalizedAndPredicate,
   NormalizedOrPredicate,
   NormalizedNotPredicate,
+  NormalizedWindowSpec,
+  NormalizedFrameBound,
   ValidationResult,
 } from './ir'
 import { ValidationError, createValidationError } from './errors'
@@ -363,7 +365,7 @@ export class QueryNormalizer extends LoggingComponent {
     return inversions[operator] || operator
   }
 
-  private normalizeWindowSpec(spec: import('./ast').WindowSpec): import('./ir').NormalizedWindowSpec {
+  private normalizeWindowSpec(spec: WindowSpec): NormalizedWindowSpec {
     return {
       partitionBy: spec.partitionBy,
       orderBy: spec.orderBy?.map((o) => ({
@@ -380,7 +382,7 @@ export class QueryNormalizer extends LoggingComponent {
     }
   }
 
-  private normalizeFrameBound(b: import('./ast').FrameBound): import('./ir').NormalizedFrameBound {
+  private normalizeFrameBound(b: FrameBound): NormalizedFrameBound {
     if (typeof b === 'string') {
       return { kind: 'literal', value: b }
     }

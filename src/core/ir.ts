@@ -151,7 +151,6 @@ export interface WindowExprIR extends BaseExprIR {
   exprType: 'window'
   fn: ExprIR
   ref: { kind: 'inline'; spec: NormalizedWindowSpec } | { kind: 'named'; name: string }
-  alias?: string
 }
 
 export type ExprIR =
