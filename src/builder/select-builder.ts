@@ -13,6 +13,11 @@ import { operatorToPredicate, parseColumnRef, isPredicateCombinator } from '../c
 import { DataFormat, StreamableDataFormat } from '@clickhouse/client'
 import { QueryBuilder } from './base-builder'
 
+export interface JoinOptions {
+  global?: boolean
+  using?: string[]
+}
+
 export class SelectBuilder extends QueryBuilder<SelectNode> {
   private query: SelectNode
   private subqueryAlias?: string
@@ -129,33 +134,94 @@ export class SelectBuilder extends QueryBuilder<SelectNode> {
   }
 
   // JOIN clauses
-  join(type: 'inner' | 'left' | 'right' | 'full', table: string | SelectBuilder, on: WhereInput, alias?: string): this {
+  join(
+    type: 'inner' | 'left' | 'right' | 'full' | 'cross',
+    table: string | SelectBuilder,
+    on: WhereInput | RawExpr | null,
+    alias?: string,
+    options?: JoinOptions,
+    strictness?: 'any' | 'asof' | 'semi' | 'anti',
+  ): this {
     if (!this.query.joins) {
       this.query.joins = []
     }
+
+    const hasUsing = !!(options?.using && options.using.length > 0)
+    const onIsEmpty = !on || (typeof on === 'object' && !('type' in on) && Object.keys(on as object).length === 0)
+
+    if (type === 'cross' && hasUsing) {
+      throw createValidationError('CROSS JOIN cannot use USING', undefined, 'join', { type })
+    }
+    if (type === 'cross' && !onIsEmpty) {
+      throw createValidationError('CROSS JOIN must not have an ON condition', undefined, 'join', { type })
+    }
+    if (!hasUsing && type !== 'cross' && onIsEmpty) {
+      throw createValidationError(
+        `${type.toUpperCase()} JOIN requires either an ON condition or options.using`,
+        undefined,
+        'join',
+        { type },
+      )
+    }
+    if (hasUsing && !onIsEmpty) {
+      throw createValidationError(
+        'JOIN cannot specify both an ON condition and options.using — pick one',
+        undefined,
+        'join',
+        { type },
+      )
+    }
+
     this.query.joins.push({
       type,
+      strictness,
+      global: options?.global,
       table: typeof table === 'string' ? table : (table as any),
       alias,
-      on: this.buildPredicate(on),
+      on: hasUsing || type === 'cross' ? undefined : this.buildPredicate(on as WhereInput | RawExpr),
+      using: options?.using,
     })
     return this
   }
 
-  innerJoin(table: string | SelectBuilder, on: WhereInput, alias?: string): this {
-    return this.join('inner', table, on, alias)
+  innerJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('inner', table, on, alias, options)
   }
 
-  leftJoin(table: string | SelectBuilder, on: WhereInput, alias?: string): this {
-    return this.join('left', table, on, alias)
+  leftJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('left', table, on, alias, options)
   }
 
-  rightJoin(table: string | SelectBuilder, on: WhereInput, alias?: string): this {
-    return this.join('right', table, on, alias)
+  rightJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('right', table, on, alias, options)
   }
 
-  fullJoin(table: string | SelectBuilder, on: WhereInput, alias?: string): this {
-    return this.join('full', table, on, alias)
+  fullJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('full', table, on, alias, options)
+  }
+
+  asofInnerJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('inner', table, on, alias, options, 'asof')
+  }
+
+  asofLeftJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('left', table, on, alias, options, 'asof')
+  }
+
+  leftSemiJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('left', table, on, alias, options, 'semi')
+  }
+
+  leftAntiJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('left', table, on, alias, options, 'anti')
+  }
+
+  leftAnyJoin(table: string | SelectBuilder, on: WhereInput | RawExpr, alias?: string, options?: JoinOptions): this {
+    return this.join('left', table, on, alias, options, 'any')
+  }
+
+  crossJoin(table: string | SelectBuilder, alias?: string, options?: JoinOptions): this {
+    return this.join('cross', table, null, alias, options)
   }
 
   // WHERE clauses
