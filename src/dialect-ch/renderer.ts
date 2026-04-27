@@ -112,11 +112,7 @@ export class ClickHouseRenderer extends LoggingComponent {
       // JOIN clauses
       if (query.joins && query.joins.length > 0) {
         for (const join of query.joins) {
-          const joinType = join.type.toUpperCase()
-          const tableName = this.quoteIdentifier(join.table)
-          const alias = join.alias ? ` AS ${this.quoteIdentifier(join.alias)}` : ''
-          const onClause = this.renderPredicateNode(join.on)
-          sql += ` ${joinType} JOIN ${tableName}${alias} ON ${onClause}`
+          sql += ' ' + this.renderJoinClause(join)
         }
       }
 
@@ -565,6 +561,93 @@ export class ClickHouseRenderer extends LoggingComponent {
    */
   private renderColumnExpression(expr: string): string {
     return this.quoteIdentifier(expr, 'select')
+  }
+
+  private renderJoinClause(join: NonNullable<QueryIR['joins']>[number]): string {
+    const tableName = this.quoteIdentifier(join.table)
+    const alias = join.alias ? ` AS ${this.quoteIdentifier(join.alias)}` : ''
+    const prefix = this.renderJoinPrefix(join.type, join.strictness, join.global)
+
+    if (join.type === 'cross') {
+      return `${prefix} JOIN ${tableName}${alias}`
+    }
+
+    if (join.using && join.using.length > 0) {
+      const cols = join.using.map((c) => this.quoteIdentifier(c)).join(', ')
+      return `${prefix} JOIN ${tableName}${alias} USING (${cols})`
+    }
+
+    if (!join.on) {
+      throw createValidationError(
+        'JOIN must have either ON or USING',
+        undefined,
+        'join',
+        { type: join.type },
+      )
+    }
+    return `${prefix} JOIN ${tableName}${alias} ON ${this.renderPredicateNode(join.on)}`
+  }
+
+  private renderJoinPrefix(
+    type: NonNullable<QueryIR['joins']>[number]['type'],
+    strictness: NonNullable<QueryIR['joins']>[number]['strictness'],
+    global?: boolean,
+  ): string {
+    const globalStr = global ? 'GLOBAL ' : ''
+    const kindUpper = type.toUpperCase()
+
+    if (!strictness) {
+      return `${globalStr}${kindUpper}`
+    }
+
+    switch (strictness) {
+      case 'any':
+        if (type !== 'inner' && type !== 'left' && type !== 'right') {
+          throw createValidationError(
+            `ANY JOIN is only valid with INNER/LEFT/RIGHT, got ${kindUpper}`,
+            undefined,
+            'join',
+            { type, strictness },
+          )
+        }
+        return `${globalStr}${kindUpper} ANY`
+      case 'asof':
+        if (type === 'inner') return `${globalStr}ASOF`
+        if (type === 'left') return `${globalStr}ASOF LEFT`
+        throw createValidationError(
+          `ASOF JOIN is only valid with INNER or LEFT, got ${kindUpper}`,
+          undefined,
+          'join',
+          { type, strictness },
+        )
+      case 'semi':
+        if (type !== 'left') {
+          throw createValidationError(
+            `SEMI JOIN currently supported only with LEFT, got ${kindUpper}`,
+            undefined,
+            'join',
+            { type, strictness },
+          )
+        }
+        return `${globalStr}LEFT SEMI`
+      case 'anti':
+        if (type !== 'left') {
+          throw createValidationError(
+            `ANTI JOIN currently supported only with LEFT, got ${kindUpper}`,
+            undefined,
+            'join',
+            { type, strictness },
+          )
+        }
+        return `${globalStr}LEFT ANTI`
+      default:
+        throw createValidationError(
+          `Unsupported strictness: ${strictness as string}`,
+          undefined,
+          'strictness',
+          strictness,
+        )
+    }
   }
 
   private quoteIdentifier(identifier: string, context: 'select' | 'predicate' = 'select'): string {
