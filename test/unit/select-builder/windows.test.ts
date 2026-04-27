@@ -1,5 +1,20 @@
 import { describe, it, expect } from '@jest/globals'
-import { select, Sum, Count, RowNumber, Rank, Lag, FirstValue } from '../../../src/index'
+import {
+  select,
+  Sum,
+  Count,
+  RowNumber,
+  Rank,
+  Lag,
+  FirstValue,
+  DenseRank,
+  PercentRank,
+  CumeDist,
+  Ntile,
+  Lead,
+  LastValue,
+  NthValue,
+} from '../../../src/index'
 
 describe('Window functions', () => {
   describe('inline OVER()', () => {
@@ -117,12 +132,74 @@ describe('Window functions', () => {
       }).from('t')
       expect(() => builder.toSQL()).toThrow(/PRECEDING offset must be <= start/)
     })
+
+    it('rejects UNBOUNDED FOLLOWING as start with an end bound', () => {
+      const builder = select({
+        s: Sum('x').over({
+          orderBy: [{ column: { type: 'column' as const, name: 'id' }, direction: 'ASC' as const }],
+          frame: { type: 'ROWS', start: 'UNBOUNDED FOLLOWING', end: 'CURRENT ROW' },
+        }),
+      }).from('t')
+      expect(() => builder.toSQL()).toThrow(/start cannot be UNBOUNDED FOLLOWING/)
+    })
+
+    it('rejects CURRENT ROW start with PRECEDING end', () => {
+      const builder = select({
+        s: Sum('x').over({
+          orderBy: [{ column: { type: 'column' as const, name: 'id' }, direction: 'ASC' as const }],
+          frame: { type: 'ROWS', start: 'CURRENT ROW', end: { preceding: 1 } },
+        }),
+      }).from('t')
+      expect(() => builder.toSQL()).toThrow(/end cannot be PRECEDING when start is CURRENT ROW/)
+    })
   })
 
   describe('mixed with aggregates', () => {
     it('aggregate function used with .over() does not break plain GROUP BY use', () => {
       const { sql } = select({ total: Sum('amount') }).from('orders').groupBy(['user_id']).toSQL()
       expect(sql).toBe('SELECT sum(amount) AS `total` FROM `orders` GROUP BY `user_id`')
+    })
+  })
+
+  describe('untested factory SQL name mappings', () => {
+    it('renders DenseRank', () => {
+      const { sql } = select({ r: DenseRank().over({}) }).from('t').toSQL()
+      expect(sql).toBe('SELECT dense_rank() OVER () AS `r` FROM `t`')
+    })
+
+    it('renders PercentRank', () => {
+      const { sql } = select({ r: PercentRank().over({}) }).from('t').toSQL()
+      expect(sql).toBe('SELECT percent_rank() OVER () AS `r` FROM `t`')
+    })
+
+    it('renders CumeDist', () => {
+      const { sql } = select({ r: CumeDist().over({}) }).from('t').toSQL()
+      expect(sql).toBe('SELECT cume_dist() OVER () AS `r` FROM `t`')
+    })
+
+    it('renders Ntile', () => {
+      const { sql } = select({ r: Ntile(4).over({}) }).from('t').toSQL()
+      expect(sql).toBe('SELECT ntile(4) OVER () AS `r` FROM `t`')
+    })
+
+    it('renders Lead (emits leadInFrame)', () => {
+      const { sql } = select({ r: Lead('amount').over({}) }).from('t').toSQL()
+      expect(sql).toBe('SELECT leadInFrame(amount) OVER () AS `r` FROM `t`')
+    })
+
+    it('renders FirstValue', () => {
+      const { sql } = select({ r: FirstValue('amount').over({}) }).from('t').toSQL()
+      expect(sql).toBe('SELECT first_value(amount) OVER () AS `r` FROM `t`')
+    })
+
+    it('renders LastValue', () => {
+      const { sql } = select({ r: LastValue('amount').over({}) }).from('t').toSQL()
+      expect(sql).toBe('SELECT last_value(amount) OVER () AS `r` FROM `t`')
+    })
+
+    it('renders NthValue', () => {
+      const { sql } = select({ r: NthValue('amount', 2).over({}) }).from('t').toSQL()
+      expect(sql).toBe('SELECT nth_value(amount, 2) OVER () AS `r` FROM `t`')
     })
   })
 })

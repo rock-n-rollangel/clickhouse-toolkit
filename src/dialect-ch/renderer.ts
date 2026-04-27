@@ -511,6 +511,24 @@ export class ClickHouseRenderer extends LoggingComponent {
     if (!spec.frame || !spec.frame.end) return
     const s = spec.frame.start
     const e = spec.frame.end
+    // UNBOUNDED FOLLOWING cannot be a start bound when there is an end bound
+    if (s.kind === 'literal' && s.value === 'UNBOUNDED FOLLOWING') {
+      throw createValidationError(
+        'Window frame start cannot be UNBOUNDED FOLLOWING when an end bound is specified',
+        undefined,
+        'frame',
+        spec.frame,
+      )
+    }
+    // CURRENT ROW start with PRECEDING end is invalid
+    if (s.kind === 'literal' && s.value === 'CURRENT ROW' && e.kind === 'preceding') {
+      throw createValidationError(
+        'Window frame end cannot be PRECEDING when start is CURRENT ROW',
+        undefined,
+        'frame',
+        spec.frame,
+      )
+    }
     if (s.kind === 'following' && e.kind === 'preceding') {
       throw createValidationError(
         'Window frame end cannot be PRECEDING when start is FOLLOWING',
