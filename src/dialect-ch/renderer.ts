@@ -116,6 +116,19 @@ export class ClickHouseRenderer extends LoggingComponent {
         }
       }
 
+      // ARRAY JOIN
+      if (query.arrayJoin) {
+        const keyword = query.arrayJoin.kind === 'left' ? 'LEFT ARRAY JOIN' : 'ARRAY JOIN'
+        const items = query.arrayJoin.items
+          .map((it) =>
+            it.alias
+              ? `${this.quoteIdentifier(it.expr)} AS ${this.quoteIdentifier(it.alias)}`
+              : this.quoteIdentifier(it.expr),
+          )
+          .join(', ')
+        sql += ` ${keyword} ${items}`
+      }
+
       // PREWHERE
       const prewherePredicates = query.predicates.filter((p) => 'isPrewhere' in p && p.isPrewhere)
       if (prewherePredicates.length > 0) {

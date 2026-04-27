@@ -123,6 +123,11 @@ export interface JoinSpec {
   using?: string[]
 }
 
+export interface ArrayJoinClause {
+  kind: 'inner' | 'left'
+  items: Array<{ expr: string; alias?: string }>
+}
+
 export interface WithClause {
   alias: string
   query: SelectNode
@@ -152,6 +157,7 @@ export interface SelectNode {
     query: SelectNode
   }>
   windows?: Record<string, WindowSpec>
+  arrayJoin?: ArrayJoinClause
 }
 
 export interface InsertNode {

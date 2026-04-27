@@ -111,6 +111,12 @@ export class QueryNormalizer extends LoggingComponent {
             Object.entries(query.windows).map(([name, spec]) => [name, this.normalizeWindowSpec(spec as any)]),
           )
         : undefined,
+      arrayJoin: query.arrayJoin
+        ? {
+            kind: query.arrayJoin.kind,
+            items: query.arrayJoin.items.map((it: any) => ({ expr: it.expr, alias: it.alias })),
+          }
+        : undefined,
     }
   }
 

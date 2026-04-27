@@ -305,6 +305,33 @@ export class SelectBuilder extends QueryBuilder<SelectNode> {
     return this
   }
 
+  arrayJoin(arrays: string[] | Record<string, string>): this {
+    this.query.arrayJoin = this.buildArrayJoin('inner', arrays)
+    return this
+  }
+
+  leftArrayJoin(arrays: string[] | Record<string, string>): this {
+    this.query.arrayJoin = this.buildArrayJoin('left', arrays)
+    return this
+  }
+
+  private buildArrayJoin(
+    kind: 'inner' | 'left',
+    arrays: string[] | Record<string, string>,
+  ): import('../core/ast').ArrayJoinClause {
+    if (Array.isArray(arrays)) {
+      if (arrays.length === 0) {
+        throw createValidationError('ARRAY JOIN requires at least one array', undefined, 'arrayJoin', arrays)
+      }
+      return { kind, items: arrays.map((a) => ({ expr: a })) }
+    }
+    const entries = Object.entries(arrays)
+    if (entries.length === 0) {
+      throw createValidationError('ARRAY JOIN requires at least one array', undefined, 'arrayJoin', arrays)
+    }
+    return { kind, items: entries.map(([alias, expr]) => ({ expr, alias })) }
+  }
+
   // Settings
   settings(opts: Record<string, any>): this {
     this.query.settings = opts

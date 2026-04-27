@@ -40,6 +40,7 @@ export interface QueryIR {
   set?: Record<string, Primitive>
   selectSource?: QueryIR
   windows?: Record<string, NormalizedWindowSpec>
+  arrayJoin?: ArrayJoinIR
 }
 
 export interface NormalizedPredicate {
@@ -148,6 +149,11 @@ export interface NormalizedWindowSpec {
     start: NormalizedFrameBound
     end?: NormalizedFrameBound
   }
+}
+
+export interface ArrayJoinIR {
+  kind: 'inner' | 'left'
+  items: Array<{ expr: string; alias?: string }>
 }
 
 export interface WindowExprIR extends BaseExprIR {
