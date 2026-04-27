@@ -49,7 +49,7 @@ export interface CaseExpr {
   else?: Expr
 }
 
-export type Expr = ColumnRef | Value | ArrayValue | TupleValue | Subquery | RawExpr | FunctionCall | CaseExpr
+export type Expr = ColumnRef | Value | ArrayValue | TupleValue | Subquery | RawExpr | FunctionCall | CaseExpr | WindowExpression
 
 export interface Predicate {
   type: 'predicate'
@@ -84,6 +84,30 @@ export type PredicateNode = Predicate | AndPredicate | OrPredicate | NotPredicat
 export interface OrderSpec {
   column: ColumnRef
   direction: 'ASC' | 'DESC'
+}
+
+export type FrameBound =
+  | 'UNBOUNDED PRECEDING'
+  | 'CURRENT ROW'
+  | 'UNBOUNDED FOLLOWING'
+  | { preceding: number }
+  | { following: number }
+
+export interface WindowSpec {
+  partitionBy?: string[]
+  orderBy?: OrderSpec[]
+  frame?: {
+    type: 'ROWS' | 'RANGE'
+    start: FrameBound
+    end?: FrameBound
+  }
+}
+
+export interface WindowExpression {
+  type: 'window'
+  fn: FunctionCall
+  ref: WindowSpec | { name: string }
+  alias?: string
 }
 
 export interface JoinSpec {
@@ -121,6 +145,7 @@ export interface SelectNode {
     type: 'union' | 'union_all'
     query: SelectNode
   }>
+  windows?: Record<string, WindowSpec>
 }
 
 export interface InsertNode {
