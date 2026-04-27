@@ -3,7 +3,7 @@
  * These functions return Expr objects for type-safe query building
  */
 
-import { Expr, ColumnRef, Value, RawExpr, FunctionCall, Primitive } from './ast'
+import { Expr, ColumnRef, Value, RawExpr, FunctionCall, Primitive, WindowSpec, WindowExpression } from './ast'
 
 /**
  * Creates a raw SQL expression that works in SELECT, WHERE, and other contexts
@@ -38,33 +38,33 @@ export function Value(value: Primitive): Value {
  * Aggregate Functions
  */
 
-export function Count(column?: string | Expr): FunctionCall {
+export function Count(column?: string | Expr): Overable<FunctionCall> {
   const arg = column
     ? typeof column === 'string'
       ? ({ type: 'column', name: column } as ColumnRef)
       : column
     : ({ type: 'raw', sql: '*' } as RawExpr)
-  return { type: 'function', name: 'count', args: [arg] }
+  return withOver({ type: 'function', name: 'count', args: [arg] })
 }
 
-export function Sum(column: string | Expr): FunctionCall {
+export function Sum(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
-  return { type: 'function', name: 'sum', args: [arg] }
+  return withOver({ type: 'function', name: 'sum', args: [arg] })
 }
 
-export function Avg(column: string | Expr): FunctionCall {
+export function Avg(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
-  return { type: 'function', name: 'avg', args: [arg] }
+  return withOver({ type: 'function', name: 'avg', args: [arg] })
 }
 
-export function Min(column: string | Expr): FunctionCall {
+export function Min(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
-  return { type: 'function', name: 'min', args: [arg] }
+  return withOver({ type: 'function', name: 'min', args: [arg] })
 }
 
-export function Max(column: string | Expr): FunctionCall {
+export function Max(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
-  return { type: 'function', name: 'max', args: [arg] }
+  return withOver({ type: 'function', name: 'max', args: [arg] })
 }
 
 /**
@@ -239,38 +239,120 @@ export function Distinct(column: string | Expr): FunctionCall {
   return { type: 'function', name: 'distinct', args: [arg] }
 }
 
-export function CountDistinct(column: string | Expr): FunctionCall {
+export function CountDistinct(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
   // This is a special case - count(distinct x) function
-  return { type: 'function', name: 'count', args: [{ type: 'function', name: 'distinct', args: [arg] }] }
+  return withOver({ type: 'function', name: 'count', args: [{ type: 'function', name: 'distinct', args: [arg] }] })
 }
 
-export function GroupArray(column: string | Expr): FunctionCall {
+export function GroupArray(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
-  return { type: 'function', name: 'groupArray', args: [arg] }
+  return withOver({ type: 'function', name: 'groupArray', args: [arg] })
 }
 
-export function GroupUniqArray(column: string | Expr): FunctionCall {
+export function GroupUniqArray(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
-  return { type: 'function', name: 'groupUniqArray', args: [arg] }
+  return withOver({ type: 'function', name: 'groupUniqArray', args: [arg] })
 }
 
-export function UniqExact(column: string | Expr): FunctionCall {
+export function UniqExact(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
-  return { type: 'function', name: 'uniqExact', args: [arg] }
+  return withOver({ type: 'function', name: 'uniqExact', args: [arg] })
 }
 
-export function Quantile(level: number, column: string | Expr): FunctionCall {
+export function Quantile(level: number, column: string | Expr): Overable<FunctionCall> {
   const args = [
     { type: 'value', value: level } as Value,
     typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column,
   ]
-  return { type: 'function', name: 'quantile', args }
+  return withOver({ type: 'function', name: 'quantile', args })
 }
 
-export function Median(column: string | Expr): FunctionCall {
+export function Median(column: string | Expr): Overable<FunctionCall> {
   const arg = typeof column === 'string' ? ({ type: 'column', name: column } as ColumnRef) : column
-  return { type: 'function', name: 'median', args: [arg] }
+  return withOver({ type: 'function', name: 'median', args: [arg] })
+}
+
+/**
+ * Window Function Support
+ */
+
+export type Overable<T extends FunctionCall> = T & {
+  over(refOrName: WindowSpec | string): WindowExpression
+}
+
+function withOver<T extends FunctionCall>(fn: T): Overable<T> {
+  const result = fn as Overable<T>
+  ;(result as any).over = function (refOrName: WindowSpec | string): WindowExpression {
+    return {
+      type: 'window',
+      fn: this as FunctionCall,
+      ref: typeof refOrName === 'string' ? { name: refOrName } : refOrName,
+    }
+  }
+  return result
+}
+
+export function RowNumber(): Overable<FunctionCall> {
+  return withOver({ type: 'function', name: 'row_number', args: [] })
+}
+
+export function Rank(): Overable<FunctionCall> {
+  return withOver({ type: 'function', name: 'rank', args: [] })
+}
+
+export function DenseRank(): Overable<FunctionCall> {
+  return withOver({ type: 'function', name: 'dense_rank', args: [] })
+}
+
+export function PercentRank(): Overable<FunctionCall> {
+  return withOver({ type: 'function', name: 'percent_rank', args: [] })
+}
+
+export function CumeDist(): Overable<FunctionCall> {
+  return withOver({ type: 'function', name: 'cume_dist', args: [] })
+}
+
+export function Ntile(buckets: number): Overable<FunctionCall> {
+  return withOver({
+    type: 'function',
+    name: 'ntile',
+    args: [{ type: 'value', value: buckets } as Value],
+  })
+}
+
+function colArg(c: string | Expr): Expr {
+  return typeof c === 'string' ? ({ type: 'column', name: c } as ColumnRef) : c
+}
+
+export function Lag(column: string | Expr, offset?: number, defaultValue?: Primitive): Overable<FunctionCall> {
+  const args: Expr[] = [colArg(column)]
+  if (offset !== undefined) args.push({ type: 'value', value: offset } as Value)
+  if (defaultValue !== undefined) args.push({ type: 'value', value: defaultValue } as Value)
+  return withOver({ type: 'function', name: 'lagInFrame', args })
+}
+
+export function Lead(column: string | Expr, offset?: number, defaultValue?: Primitive): Overable<FunctionCall> {
+  const args: Expr[] = [colArg(column)]
+  if (offset !== undefined) args.push({ type: 'value', value: offset } as Value)
+  if (defaultValue !== undefined) args.push({ type: 'value', value: defaultValue } as Value)
+  return withOver({ type: 'function', name: 'leadInFrame', args })
+}
+
+export function FirstValue(column: string | Expr): Overable<FunctionCall> {
+  return withOver({ type: 'function', name: 'first_value', args: [colArg(column)] })
+}
+
+export function LastValue(column: string | Expr): Overable<FunctionCall> {
+  return withOver({ type: 'function', name: 'last_value', args: [colArg(column)] })
+}
+
+export function NthValue(column: string | Expr, n: number): Overable<FunctionCall> {
+  return withOver({
+    type: 'function',
+    name: 'nth_value',
+    args: [colArg(column), { type: 'value', value: n } as Value],
+  })
 }
 
 // Re-export Case builder for convenience

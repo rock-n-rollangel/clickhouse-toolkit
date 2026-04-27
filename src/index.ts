@@ -121,4 +121,18 @@ export {
   UniqExact,
   Quantile,
   Median,
+  // Window functions
+  RowNumber,
+  Rank,
+  DenseRank,
+  PercentRank,
+  CumeDist,
+  Ntile,
+  Lag,
+  Lead,
+  FirstValue,
+  LastValue,
+  NthValue,
 } from './core/sql-functions'
+
+export type { Overable } from './core/sql-functions'
