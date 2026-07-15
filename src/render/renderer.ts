@@ -18,7 +18,7 @@ import {
 } from '../core/ir'
 import { Primitive } from '../core/ast'
 import { createValidationError } from '../core/errors'
-import { ClickHouseValueFormatter } from '../core/value-formatter'
+import { ClickHouseValueFormatter } from './value-formatter'
 import { Logger, LoggingComponent } from '../core/logger'
 
 export class ClickHouseRenderer extends LoggingComponent {

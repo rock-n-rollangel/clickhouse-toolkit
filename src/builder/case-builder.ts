@@ -2,10 +2,10 @@
  * CASE WHEN THEN builder helper
  */
 
-import { WhereInput, Operator } from './operators'
-import { PredicateNode, Expr, CaseExpr, SelectNode } from './ast'
-import { operatorToPredicate, parseColumnRef, isPredicateNode } from './predicate-builder'
-import { createValidationError } from './errors'
+import { WhereInput, Operator } from '../core/operators'
+import { PredicateNode, Expr, CaseExpr, SelectNode } from '../core/ast'
+import { operatorToPredicate, parseColumnRef, isPredicateNode } from './predicate-utils'
+import { createValidationError } from '../core/errors'
 
 export class CaseBuilder {
   private cases: Array<{ condition: PredicateNode; then: Expr }> = []

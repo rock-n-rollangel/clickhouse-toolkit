@@ -3,7 +3,7 @@
  */
 
 import { InsertNode } from '../core/ast'
-import { ClickHouseRenderer } from '../dialect-ch/renderer'
+import { ClickHouseRenderer } from '../render/renderer'
 import { createValidationError } from '../core/errors'
 import { QueryRunner } from '../runner/query-runner'
 import { Logger } from '../core/logger'

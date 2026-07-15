@@ -3,9 +3,9 @@
  * Eliminates duplication across different query builders
  */
 
-import { ColumnRef, PredicateNode } from './ast'
-import { Operator, PredicateCombinator } from './operators'
-import { createValidationError } from './errors'
+import { ColumnRef, PredicateNode } from '../core/ast'
+import { Operator, PredicateCombinator } from '../core/operators'
+import { createValidationError } from '../core/errors'
 
 /**
  * Parses a column string into a ColumnRef object

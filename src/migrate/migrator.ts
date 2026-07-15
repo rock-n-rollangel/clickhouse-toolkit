@@ -3,7 +3,7 @@
  */
 
 import { QueryRunner } from '../runner/query-runner'
-import { valueFormatter } from '../core/value-formatter'
+import { valueFormatter } from '../render/value-formatter'
 import { DriftDetection } from './drift-detection'
 import { Migration, FileMigration, MigrationStep } from './migration'
 import { MigrationPlan } from './migration-plan'

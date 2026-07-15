@@ -1,10 +1,10 @@
 /**
  * Predicate Builder Tests
- * Comprehensive tests for predicate-builder utility functions
+ * Comprehensive tests for predicate-utils utility functions
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { parseColumnRef, operatorToPredicate } from '../../../src/core/predicate-builder'
+import { parseColumnRef, operatorToPredicate } from '../../../src/builder/predicate-utils'
 import {
   Eq,
   Ne,

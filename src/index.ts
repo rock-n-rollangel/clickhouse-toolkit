@@ -11,8 +11,8 @@ export * from './core/operators'
 export * from './core/errors'
 export * from './core/logger'
 export * from './core/validator'
-export * from './core/predicate-builder'
-export * from './core/case-builder'
+export * from './builder/predicate-utils'
+export * from './builder/case-builder'
 
 // Builder exports
 export * from './builder/select-builder'
@@ -22,7 +22,7 @@ export * from './builder/delete-builder'
 export * from './builder/base-builder'
 
 // Dialect exports
-export * from './dialect-ch/renderer'
+export * from './render/renderer'
 
 // Runner exports
 export * from './runner/query-runner'
@@ -76,8 +76,6 @@ export {
   Value,
   // Raw SQL function
   Raw,
-  // CASE builder
-  Case,
   // Aggregate functions
   Count,
   Sum,

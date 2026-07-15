@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { Case } from '../../../src/core/case-builder'
+import { Case } from '../../../src/builder/case-builder'
 import { CaseExpr } from '../../../src/core/ast'
 import { Eq, Gt, Lt, In, IsNull, IsNotNull, Like, EqCol, Lte } from '../../../src/core/operators'
 import { Count, Sum, Concat, Upper, Raw, Column, Value } from '../../../src/index'

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { ClickHouseValueFormatter, valueFormatter } from '../../../src/core/value-formatter'
+import { ClickHouseValueFormatter, valueFormatter } from '../../../src/render/value-formatter'
 
 describe('ClickHouseValueFormatter', () => {
   let formatter: ClickHouseValueFormatter

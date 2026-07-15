@@ -359,6 +359,3 @@ export function NthValue(column: string | Expr, n: number): Overable<FunctionCal
     args: [colArg(column), { type: 'value', value: n } as Value],
   })
 }
-
-// Re-export Case builder for convenience
-export { Case } from './case-builder'
