@@ -60,6 +60,7 @@ describe('QueryRunner', () => {
         database: options.database,
         clickhouse_settings: undefined,
         keep_alive: { enabled: true },
+        request_timeout: options.timeout,
       })
     })
 
@@ -79,6 +80,7 @@ describe('QueryRunner', () => {
         database: customOptions.database,
         clickhouse_settings: { max_execution_time: 60 },
         keep_alive: { enabled: false },
+        request_timeout: customOptions.timeout,
       })
     })
 
@@ -100,6 +102,29 @@ describe('QueryRunner', () => {
         clickhouse_settings: undefined,
         keep_alive: { enabled: false },
       })
+    })
+  })
+
+  describe('request_timeout forwarding (long-running queries)', () => {
+    it('forwards options.timeout to the ClickHouse client as request_timeout', () => {
+      // Regression: the client's default request_timeout (30s) severs long
+      // queries regardless of options.timeout, which only drove the abort signal.
+      const threeHours = 3 * 60 * 60 * 1000
+      new QueryRunner({ ...options, timeout: threeHours })
+
+      expect(mockCreateClient).toHaveBeenCalledWith(expect.objectContaining({ request_timeout: threeHours }))
+    })
+
+    it('omits request_timeout when no timeout is configured (client default applies)', () => {
+      new QueryRunner({
+        url: options.url,
+        username: options.username,
+        password: options.password,
+        database: options.database,
+      })
+
+      const lastCall = mockCreateClient.mock.calls[mockCreateClient.mock.calls.length - 1][0]
+      expect(lastCall).not.toHaveProperty('request_timeout')
     })
   })
 

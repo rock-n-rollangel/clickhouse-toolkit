@@ -75,6 +75,11 @@ export class QueryRunner {
       database: options.database,
       clickhouse_settings: options.settings,
       keep_alive: options.keepAlive ? { enabled: true } : { enabled: false },
+      // Forward the configured timeout as the client's HTTP request_timeout.
+      // Without this, @clickhouse/client's 30s default severs long-running
+      // queries (large INSERT/migrations) even though options.timeout drives the
+      // abort signal. Omitted when unset/0 so the client default (30s) applies.
+      ...(options.timeout ? { request_timeout: options.timeout } : {}),
     })
   }
 
