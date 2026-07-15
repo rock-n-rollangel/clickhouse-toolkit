@@ -103,6 +103,39 @@ describe('Migrator', () => {
     })
   })
 
+  describe('applyMigration statement splitting', () => {
+    it('runs each ;-separated statement in an up step as its own command (ClickHouse HTTP has no multi-statements)', async () => {
+      mockQueryRunner.command.mockResolvedValue(undefined)
+      jest.spyOn(migrator as any, 'recordMigration').mockResolvedValue(undefined)
+
+      const migration = {
+        id: '002_records_schema_v2',
+        filename: '002_records_schema_v2.sql',
+        content: '-- up\n...',
+        checksum: 'abc123',
+        steps: [],
+        up: [
+          {
+            type: 'up' as const,
+            sql: "DROP TABLE IF EXISTS records_v2;\nDROP TABLE IF EXISTS records_by_plate;\nALTER TABLE migrations DELETE WHERE id = '002'",
+          },
+        ],
+        down: [],
+        createdAt: new Date(),
+        description: '',
+      }
+
+      await (migrator as any).applyMigration(migration)
+
+      expect(mockQueryRunner.command).toHaveBeenCalledTimes(3)
+      expect(mockQueryRunner.command).toHaveBeenCalledWith({ sql: 'DROP TABLE IF EXISTS records_v2' })
+      expect(mockQueryRunner.command).toHaveBeenCalledWith({ sql: 'DROP TABLE IF EXISTS records_by_plate' })
+      expect(mockQueryRunner.command).toHaveBeenCalledWith({ sql: "ALTER TABLE migrations DELETE WHERE id = '002'" })
+      // Regression: the whole multi-statement blob must NOT be sent as one request.
+      expect(mockQueryRunner.command).not.toHaveBeenCalledWith({ sql: expect.stringContaining(';') })
+    })
+  })
+
   describe('status()', () => {
     it('should return migration status', async () => {
       const mockStatus = [

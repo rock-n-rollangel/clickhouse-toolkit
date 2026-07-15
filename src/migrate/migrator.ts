@@ -7,6 +7,7 @@ import { valueFormatter } from '../core/value-formatter'
 import { DriftDetection } from './drift-detection'
 import { Migration, FileMigration, MigrationStep } from './migration'
 import { MigrationPlan } from './migration-plan'
+import { splitSqlStatements } from './sql-statements'
 import { createMigrationError } from '../core/errors'
 import { createLoggerContext } from '../core/logger'
 import * as fs from 'fs'
@@ -493,7 +494,11 @@ export class Migrator {
           // FileMigration
           checksum = migration.checksum
           for (const step of migration.up) {
-            await this.runner.command({ sql: step.sql })
+            // A step may hold several `;`-separated statements; ClickHouse-over-HTTP
+            // rejects multi-statement requests, so run each statement separately.
+            for (const statement of splitSqlStatements(step.sql)) {
+              await this.runner.command({ sql: statement })
+            }
           }
         } else {
           // Class-based Migration
@@ -521,7 +526,9 @@ export class Migrator {
         if ('content' in migration) {
           // FileMigration
           for (const step of migration.down) {
-            await this.runner.command({ sql: step.sql })
+            for (const statement of splitSqlStatements(step.sql)) {
+              await this.runner.command({ sql: statement })
+            }
           }
         } else {
           // Class-based Migration
