@@ -415,7 +415,7 @@ describe('SelectBuilder', () => {
 
   describe('GROUP BY and HAVING', () => {
     it('should build GROUP BY clause', () => {
-      const query = select(['status', 'count()']).from('users').groupBy(['status'])
+      const query = select(['status', Raw('count()')]).from('users').groupBy(['status'])
 
       const { sql } = query.toSQL()
 
@@ -423,14 +423,14 @@ describe('SelectBuilder', () => {
     })
 
     it('should build GROUP BY with HAVING clause', () => {
-      const query = select(['status', 'count()'])
+      const query = select(['status', Raw('count()')])
         .from('users')
         .groupBy(['status'])
-        .having({ 'count()': Gt(5) })
+        .having(Raw('count() > 5'))
 
       const { sql } = query.toSQL()
 
-      expect(sql).toBe('SELECT `status`, count() FROM `users` GROUP BY `status` HAVING `count()` > 5')
+      expect(sql).toBe('SELECT `status`, count() FROM `users` GROUP BY `status` HAVING count() > 5')
     })
   })
 
@@ -473,7 +473,7 @@ describe('SelectBuilder', () => {
           'u.age': Gt(18),
         })
         .groupBy(['u.id', 'u.name'])
-        .having({ 'count()': Gt(1) })
+        .having(Raw('count() > 1'))
         .orderBy([{ column: 'u.name', direction: 'ASC' }])
         .limit(10, 20)
         .final()
@@ -486,7 +486,7 @@ describe('SelectBuilder', () => {
           'INNER JOIN `posts` AS `p` ON `u`.`id` = `p`.`user_id` ' +
           "WHERE `u`.`status` = 'active' AND `u`.`age` > 18 " +
           'GROUP BY `u`.`id`, `u`.`name` ' +
-          'HAVING `count()` > 1 ' +
+          'HAVING count() > 1 ' +
           'ORDER BY `u`.`name` ASC ' +
           'LIMIT 10 OFFSET 20 ' +
           'FINAL ' +
@@ -581,7 +581,7 @@ describe('SelectBuilder', () => {
     it('should handle complex expressions with aliases', () => {
       const query = select({
         upperName: Upper('name'),
-        fullName: 'concat(first_name, " ", last_name)',
+        fullName: Raw('concat(first_name, " ", last_name)'),
       }).from('users')
 
       const { sql } = query.toSQL()
@@ -608,19 +608,15 @@ describe('SelectBuilder', () => {
         .from('users')
         .where({ 'id; DROP TABLE users; --': Eq('1') })
 
-      const { sql } = query.toSQL()
-
-      // The malicious column name should be properly escaped
-      expect(sql).toContain('`id; DROP TABLE users; --`')
+      // Until 3.0.0 this was merely backtick-wrapped, which is only safe as long as the
+      // string happens to contain no backtick of its own. A non-identifier is now rejected.
+      expect(() => query.toSQL()).toThrow(/is not a valid identifier/)
     })
 
     it('should prevent SQL injection in table names', () => {
       const query = select(['id', 'name']).from('users; DROP TABLE users; --')
 
-      const { sql } = query.toSQL()
-
-      // The malicious table name should be properly escaped
-      expect(sql).toContain('`users; DROP TABLE users; --`')
+      expect(() => query.toSQL()).toThrow(/is not a valid identifier/)
     })
 
     it('should use parameterized queries for values', () => {

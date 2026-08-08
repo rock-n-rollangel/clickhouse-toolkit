@@ -27,8 +27,19 @@ export class ClickHouseValueFormatter implements ValueFormatter {
       return 'NULL'
     }
 
-    // Escape single quotes by doubling them
-    const escaped = value.replace(/'/g, "''")
+    // Escape backslashes FIRST, then single quotes. The order matters: doubling the
+    // quotes first would let this pass mangle the escape we just produced.
+    //
+    // This is a correctness fix as much as a security one. ClickHouse honours C-style
+    // escapes inside single-quoted literals, so the previous quotes-only escaping
+    // emitted `a\b` as 'a\b', which the server read back as "a" followed by a
+    // backspace - silently corrupting every value that contained a backslash.
+    // It was also a full injection primitive: a value ending in a backslash consumed
+    // its own closing quote, so the *next* caller-supplied value escaped the literal
+    // and authored SQL, e.g.
+    //   WHERE node_status = 'x\' AND device_status = ' OR 1=1 --'
+    // which returns the whole table and comments out every clause that follows.
+    const escaped = value.replace(/\\/g, '\\\\').replace(/'/g, "''")
     return `'${escaped}'`
   }
 

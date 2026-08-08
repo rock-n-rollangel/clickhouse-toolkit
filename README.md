@@ -9,6 +9,7 @@ A safety-first, composable TypeScript toolkit for building safe, ergonomic Click
 
 - [Features](#features)
 - [Installation](#installation)
+- [Upgrading to 3.0.0](#upgrading-to-300)
 - [Quick Start](#quick-start)
 - [Query Builder](#query-builder)
   - [SELECT Queries](#select-queries)
@@ -45,6 +46,84 @@ A safety-first, composable TypeScript toolkit for building safe, ergonomic Click
 ```bash
 npm install clickhouse-toolkit
 ```
+
+## Upgrading to 3.0.0
+
+3.0.0 closes two SQL-injection primitives. Both were verified against a live
+ClickHouse, and one of them was also silently corrupting data.
+
+### Identifiers must now be identifier-shaped
+
+**What changed.** Until 3.0.0, a column/alias/table string containing `(` was treated
+as a function call and, outside predicate context, emitted **completely unquoted and
+unvalidated**. Any caller-controlled "column name" was therefore arbitrary SQL. A
+measure key of
+
+```
+v, (SELECT groupArray(concat(node_id,'=',toString(value))) FROM events) AS leak
+```
+
+produced a `SELECT` whose injected subquery ignored the outer query's row-level
+scoping and returned every tenant's rows to the caller.
+
+Identifiers are now validated. A string that is not identifier-shaped — letters,
+digits, underscores and hyphens, not starting with a digit — throws a
+`ValidationError` instead of being emitted. `*`, numeric literals (`SELECT 1 FROM …`)
+and `table.column` keep working exactly as before.
+
+**Why a hard break rather than more escaping.** The library already had an explicit
+route for author-supplied SQL: `Raw(sql)`. The `(` passthrough was a *second*,
+implicit, unvalidated route to the same capability, which left the renderer unable to
+tell "an identifier the caller named" from "SQL the caller authored". Removing it
+leaves one honest route, and the renderer can tell the difference again.
+
+**Migration.** Wrap the expression in `Raw()` — or use the typed helpers, which were
+always the better answer:
+
+```typescript
+// Before (2.x)                        →  After (3.0.0)
+select(['sum(value)'])                 →  select([Raw('sum(value)')])      // or select([Sum('value')])
+select(['status', 'count()'])          →  select(['status', Raw('count()')])
+select({ total: 'sum(amount)' })       →  select({ total: Raw('sum(amount)') })
+.having({ 'count()': Gt(5) })          →  .having(Raw('count() > 5'))
+```
+
+The one-line rule: **`'sum(value)'` → `Raw('sum(value)')`**.
+
+`GROUP BY` and `ORDER BY` take plain strings, so an expression there has no `Raw()`
+slot. Alias the expression in the `SELECT` list and group/order by the alias:
+
+```typescript
+select({ day: Raw('toDate(created_at)'), total: Sum('value') })
+  .from('events')
+  .groupBy(['day'])
+  .orderBy([{ column: 'total', direction: 'DESC' }])
+```
+
+Note that `Raw()` bypasses all escaping by design. If the string is built from user
+input, that input is now your responsibility — which is precisely the distinction 2.x
+could not express.
+
+### String values escape backslashes
+
+**What changed.** `formatString` doubled `'` but left `\` untouched. This was a
+correctness bug before it was a security one: ClickHouse honours C-style escapes
+inside single-quoted literals, so the value `a\b` was emitted as `'a\b'` and read back
+as `a` followed by a **backspace**.
+
+With two caller-supplied values it was a full breakout, because the first value's
+trailing backslash consumed its own closing quote and the second supplied the SQL:
+
+```sql
+SELECT count() FROM events WHERE node_status = 'x\' AND device_status = ' OR 1=1 --'
+```
+
+That returned the entire table, and the trailing `--` commented out every `WHERE`
+clause after it.
+
+**Migration.** None — values now round-trip correctly. If you had a workaround that
+pre-escaped backslashes before handing values to the builder, remove it, or those
+values will now be double-escaped.
 
 ## Quick Start
 

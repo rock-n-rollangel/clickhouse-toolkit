@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { select, Eq, EqCol, Gt, And, Or, Lt, In, SelectNode } from '../../../src/index'
+import { select, Eq, EqCol, Gt, And, Or, Lt, In, Raw, SelectNode } from '../../../src/index'
 
 describe('AST and IR Pipeline', () => {
   describe('AST Generation', () => {
@@ -123,14 +123,14 @@ describe('AST and IR Pipeline', () => {
     })
 
     it('should handle IR with group by and having', () => {
-      const query = select(['status', 'count()'])
+      const query = select(['status', Raw('count()')])
         .from('users')
         .groupBy(['status'])
-        .having({ 'count()': Gt(5) })
+        .having(Raw('count() > 5'))
 
       const { sql } = query.toSQL()
 
-      expect(sql).toBe('SELECT `status`, count() FROM `users` GROUP BY `status` HAVING `count()` > 5')
+      expect(sql).toBe('SELECT `status`, count() FROM `users` GROUP BY `status` HAVING count() > 5')
     })
   })
 

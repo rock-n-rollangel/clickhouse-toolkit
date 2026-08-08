@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { select, Eq, Gt, In, Exists, NotExists, EqCol, Count, Avg } from '../../../src/index'
+import { select, Eq, Gt, In, Exists, NotExists, EqCol, Count, Avg, Max } from '../../../src/index'
 
 describe('Subqueries', () => {
   describe('Subqueries in WHERE with IN', () => {
@@ -152,7 +152,7 @@ describe('Subqueries', () => {
     })
 
     it('should build subquery with Eq', () => {
-      const maxPriceQuery = select(['max(price)']).from('products')
+      const maxPriceQuery = select([Max('price')]).from('products')
 
       const query = select(['id', 'name', 'price'])
         .from('products')

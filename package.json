@@ -1,6 +1,6 @@
 {
   "name": "clickhouse-toolkit",
-  "version": "2.2.4",
+  "version": "3.0.0",
   "description": "A customizable SQL query builder for ClickHouse databases.",
   "license": "MIT",
   "author": {
@@ -9,8 +9,15 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "README.md", "LICENSE"],
-  "keywords": ["clickhouse", "query-builder"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "clickhouse",
+    "query-builder"
+  ],
   "repository": {
     "type": "git",
     "url": "git@github.com:rock-n-rollangel/clickhouse-toolkit.git"

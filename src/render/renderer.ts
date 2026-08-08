@@ -309,7 +309,7 @@ export class ClickHouseRenderer extends LoggingComponent {
   }
 
   private renderPredicate(predicate: NormalizedPredicate): string {
-    const left = predicate.left ? this.quoteIdentifier(predicate.left, 'predicate') : ''
+    const left = predicate.left ? this.quoteIdentifier(predicate.left) : ''
     const right = this.formatPredicateRight(predicate.right)
 
     // In case it's a HAS ANY/ALL/IN TUPLE, we need to quote the i
@@ -369,7 +369,7 @@ export class ClickHouseRenderer extends LoggingComponent {
       return `(${subquerySql})`
     }
     if (right && typeof right === 'object' && right.type === 'column') {
-      return this.quoteIdentifier(right.table ? `${right.table}.${right.name}` : right.name, 'predicate')
+      return this.quoteIdentifier(right.table ? `${right.table}.${right.name}` : right.name)
     }
 
     if (Array.isArray(right)) {
@@ -424,7 +424,7 @@ export class ClickHouseRenderer extends LoggingComponent {
         if (context === 'function') {
           return colName
         }
-        return this.quoteIdentifier(colName, context)
+        return this.quoteIdentifier(colName)
 
       case 'raw':
         // TypeScript knows expr.rawSql exists for 'raw' type
@@ -589,7 +589,7 @@ export class ClickHouseRenderer extends LoggingComponent {
    * Render column expression (may be a simple column name or a function call) - DEPRECATED
    */
   private renderColumnExpression(expr: string): string {
-    return this.quoteIdentifier(expr, 'select')
+    return this.quoteIdentifier(expr)
   }
 
   private renderJoinClause(join: NonNullable<QueryIR['joins']>[number]): string {
@@ -672,8 +672,28 @@ export class ClickHouseRenderer extends LoggingComponent {
     }
   }
 
-  private quoteIdentifier(identifier: string, context: 'select' | 'predicate' = 'select'): string {
-    // Allow special identifiers like * (but quote function calls in predicates)
+  /**
+   * Quote a caller-supplied identifier (column, alias, table, GROUP BY / ORDER BY key...).
+   *
+   * An identifier must be identifier-shaped. Anything that is not is rejected rather
+   * than guessed at, because the renderer has no way to tell "a column the caller
+   * named" from "SQL the caller authored" once both arrive as a bare string.
+   *
+   * Until 3.0.0 a string containing '(' was treated as a function call and, outside
+   * predicate context, returned completely unquoted and unvalidated - so any
+   * caller-controlled column name was arbitrary SQL. A measure key of
+   *   v, (SELECT groupArray(...) FROM events) AS leak
+   * produced a SELECT whose injected subquery ignored the outer query's row-level
+   * scoping and returned every tenant's data to the caller.
+   *
+   * That passthrough was a second, implicit, unvalidated path to a capability the
+   * library already exposes explicitly: Raw(sql) (see src/core/sql-functions.ts),
+   * which returns a RawExpr the renderer emits verbatim *because the caller asked
+   * it to*. Removing the implicit path leaves one honest route for author-supplied
+   * SQL, and lets the renderer distinguish the two cases again.
+   */
+  private quoteIdentifier(identifier: string): string {
+    // Allow the star selector
     if (identifier === '*') {
       return identifier
     }
@@ -681,15 +701,6 @@ export class ClickHouseRenderer extends LoggingComponent {
     // Don't quote numeric literals (for EXISTS queries: SELECT 1 FROM ...)
     if (/^\d+(\.\d+)?$/.test(identifier)) {
       return identifier
-    }
-
-    // For function calls, quote only in predicate context (WHERE, HAVING)
-    if (identifier.includes('(')) {
-      if (context === 'predicate') {
-        return `\`${identifier}\``
-      } else {
-        return identifier
-      }
     }
 
     // Allow table.column format
@@ -718,8 +729,22 @@ export class ClickHouseRenderer extends LoggingComponent {
       return `\`${parts[0]}\`.\`${parts[1]}\``
     }
 
-    // Allow any identifier - escape it with backticks to prevent SQL injection
-    // This is safer than validation as it neutralizes malicious SQL
+    // Everything else must be a plain identifier. Backtick-quoting an arbitrary string
+    // is not sufficient - a backtick inside it closes the quoting and resumes SQL -
+    // so the shape is validated instead of trusted. Hyphens are allowed because
+    // `user-profiles` is a legitimate backtick-quoted ClickHouse table name and cannot
+    // escape the quoting; parentheses, quotes, semicolons and whitespace are not.
+    if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(identifier)) {
+      throw createValidationError(
+        `Invalid identifier: '${identifier}' is not a valid identifier. ` +
+          `Identifiers may contain only letters, digits, underscores and hyphens, and may not start with a digit. ` +
+          `To emit SQL - a function call, an expression, a subquery - pass it explicitly through Raw(), ` +
+          `e.g. Raw('sum(value)') instead of 'sum(value)'.`,
+        undefined,
+        'identifier',
+        identifier,
+      )
+    }
 
     // Use backticks for quoting (ClickHouse supports both backticks and double quotes)
     return `\`${identifier}\``

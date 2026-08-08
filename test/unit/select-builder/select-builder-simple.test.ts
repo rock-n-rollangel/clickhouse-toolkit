@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
-import { select, Eq, Gt, Lt, Like, In } from '../../../src/index'
+import { select, Eq, Gt, Lt, Like, In, Raw } from '../../../src/index'
 
 describe('SelectBuilder - Basic Functionality', () => {
   beforeEach(() => {
@@ -157,7 +157,7 @@ describe('SelectBuilder - Basic Functionality', () => {
 
   describe('GROUP BY and HAVING', () => {
     it('should build GROUP BY clause', () => {
-      const query = select(['status', 'count()']).from('users').groupBy(['status'])
+      const query = select(['status', Raw('count()')]).from('users').groupBy(['status'])
 
       const { sql } = query.toSQL()
 
@@ -165,14 +165,14 @@ describe('SelectBuilder - Basic Functionality', () => {
     })
 
     it('should build GROUP BY with HAVING clause', () => {
-      const query = select(['status', 'count()'])
+      const query = select(['status', Raw('count()')])
         .from('users')
         .groupBy(['status'])
-        .having({ 'count()': Gt(5) })
+        .having(Raw('count() > 5'))
 
       const { sql } = query.toSQL()
 
-      expect(sql).toBe('SELECT `status`, count() FROM `users` GROUP BY `status` HAVING `count()` > 5')
+      expect(sql).toBe('SELECT `status`, count() FROM `users` GROUP BY `status` HAVING count() > 5')
     })
   })
 
