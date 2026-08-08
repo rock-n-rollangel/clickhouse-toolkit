@@ -171,10 +171,14 @@ export class ClickHouseRenderer extends LoggingComponent {
       sql += ' ORDER BY ' + query.orderBy.map((o) => `${this.renderExpression(o.column)} ${o.direction}`).join(', ')
     }
 
-    if (query.limit) {
-      sql += ` LIMIT ${query.limit}`
-      if (query.offset) {
-        sql += ` OFFSET ${query.offset}`
+    // Nullish, not falsy: `limit: 0` is a legitimate query meaning "no rows".
+    // The old truthiness test dropped the clause entirely, so a paginator that
+    // computed 0 silently received the WHOLE table — a bug that fails in the
+    // most dangerous direction.
+    if (query.limit !== undefined && query.limit !== null) {
+      sql += ` LIMIT ${this.renderRowCount(query.limit, 'limit')}`
+      if (query.offset !== undefined && query.offset !== null) {
+        sql += ` OFFSET ${this.renderRowCount(query.offset, 'offset')}`
       }
     }
 
@@ -688,6 +692,34 @@ export class ClickHouseRenderer extends LoggingComponent {
    * it to*. Removing the implicit path leaves one honest route for author-supplied
    * SQL, and lets the renderer distinguish the two cases again.
    */
+  /**
+   * LIMIT and OFFSET are interpolated straight into the SQL string, so they are
+   * a literal injection point for anything that reaches the renderer without
+   * having gone through TypeScript — a JavaScript consumer, a value parsed from
+   * JSON or a query string, or a hand-built AST. Before this guard,
+   * `.limit('1 UNION ALL SELECT 999')` rendered exactly that, and
+   * `.limit(10, '5; DROP TABLE x')` appended a second statement.
+   *
+   * The check lives in the renderer rather than only in the builder because the
+   * builder is not the only way to reach here: the AST/IR can be constructed
+   * directly, and a type annotation is not a runtime boundary.
+   *
+   * Negative and fractional values are rejected too — ClickHouse would reject
+   * the resulting SQL anyway, and failing here names the offending field
+   * instead of surfacing a server-side syntax error.
+   */
+  private renderRowCount(value: unknown, field: 'limit' | 'offset'): string {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+      throw createValidationError(
+        `Invalid ${field}: expected a non-negative safe integer, received ${JSON.stringify(value)}`,
+        undefined,
+        field,
+        value as never,
+      )
+    }
+    return String(value)
+  }
+
   private quoteIdentifier(identifier: string): string {
     // Allow the star selector
     if (identifier === '*') {

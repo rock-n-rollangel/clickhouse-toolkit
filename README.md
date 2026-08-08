@@ -139,6 +139,35 @@ which is equivalent SQL. Only snapshot tests that compare SQL text are affected.
 argument that is deliberately an expression goes through `Raw()`, as everywhere else:
 `Sum(Raw('if(ok, value, 0)'))`.
 
+### `LIMIT` / `OFFSET` are validated, and `LIMIT 0` now renders
+
+**What changed.** Both values were interpolated straight into the SQL string with no
+runtime check. A type annotation is not a runtime boundary, so any caller arriving from
+outside TypeScript — plain JavaScript, a value parsed from JSON or a query string, a
+hand-built AST — could inject:
+
+```typescript
+select(['id']).from('users').limit('1 UNION ALL SELECT 999')
+// 2.x:   SELECT `id` FROM `users` LIMIT 1 UNION ALL SELECT 999
+// 3.0.0: throws ValidationError
+
+select(['id']).from('users').limit(10, '5; DROP TABLE x')
+// 2.x:   ... LIMIT 10 OFFSET 5; DROP TABLE x
+// 3.0.0: throws ValidationError
+```
+
+Both must now be non-negative safe integers. Negative and fractional values are rejected
+too: ClickHouse would reject the resulting SQL anyway, and failing here names the
+offending field instead of surfacing a server-side syntax error.
+
+**Separately, a correctness fix.** The clause sat behind a truthiness test, so `limit(0)`
+— a legitimate query meaning *no rows* — dropped `LIMIT` entirely and returned the
+**whole table**. It now renders `LIMIT 0`. A query with no limit set is unchanged.
+
+**Migration.** Pass numbers, not numeric strings: `limit(Number(req.query.limit))`, and
+validate that value before it reaches the builder if it came from a request. If anything
+relied on `limit(0)` meaning "unlimited", it was relying on a bug — omit the call instead.
+
 ### String values escape backslashes
 
 **What changed.** `formatString` doubled `'` but left `\` untouched. This was a

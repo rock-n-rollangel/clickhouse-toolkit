@@ -153,6 +153,56 @@ describe('SelectBuilder - Basic Functionality', () => {
 
       expect(sql).toBe('SELECT `id`, `name` FROM `users` LIMIT 10 OFFSET 20')
     })
+
+    // `limit(0)` means "no rows". A truthiness test used to drop the clause
+    // entirely, so a paginator that computed 0 silently received every row.
+    it('renders LIMIT 0 rather than dropping the clause', () => {
+      expect(select(['id']).from('users').limit(0).toSQL().sql).toBe('SELECT `id` FROM `users` LIMIT 0')
+      expect(select(['id']).from('users').limit(0, 5).toSQL().sql).toBe(
+        'SELECT `id` FROM `users` LIMIT 0 OFFSET 5',
+      )
+    })
+
+    it('omits the clause entirely when no limit was set', () => {
+      expect(select(['id']).from('users').toSQL().sql).toBe('SELECT `id` FROM `users`')
+    })
+
+    // LIMIT/OFFSET are interpolated straight into the SQL string, so a caller
+    // reaching the renderer without passing through TypeScript — a JS consumer,
+    // a value out of JSON or a query string, a hand-built AST — could inject.
+    // These use the real payloads, not toy strings.
+    it('rejects a string LIMIT instead of interpolating it as SQL', () => {
+      expect(() =>
+        select(['id'])
+          .from('users')
+          .limit('1 UNION ALL SELECT 999' as unknown as number)
+          .toSQL(),
+      ).toThrow(/Invalid limit/)
+    })
+
+    it('rejects a string OFFSET instead of appending a second statement', () => {
+      expect(() =>
+        select(['id'])
+          .from('users')
+          .limit(10, '5; DROP TABLE x' as unknown as number)
+          .toSQL(),
+      ).toThrow(/Invalid offset/)
+    })
+
+    it.each([
+      ['negative', -5],
+      ['fractional', 2.5],
+      ['beyond safe-integer range', 1e21],
+      ['NaN', NaN],
+      ['Infinity', Infinity],
+    ])('rejects a %s limit', (_label, value) => {
+      expect(() =>
+        select(['id'])
+          .from('users')
+          .limit(value as number)
+          .toSQL(),
+      ).toThrow(/Invalid limit/)
+    })
   })
 
   describe('GROUP BY and HAVING', () => {
