@@ -95,7 +95,7 @@ export class QueryNormalizer extends LoggingComponent {
       columns: query.columns?.map((col: any) => this.normalizeExpression(col)),
       predicates: [...prewherePredicates, ...predicates],
       orderBy: query.orderBy?.map((o: any) => ({
-        column: this.normalizeColumnRef(o.column),
+        column: this.normalizeExpression(o.column),
         direction: o.direction,
       })),
       limit: query.limit,
@@ -111,7 +111,7 @@ export class QueryNormalizer extends LoggingComponent {
         on: j.on ? this.normalizePredicate(j.on) : undefined,
         using: j.using,
       })),
-      groupBy: query.groupBy?.map((col: any) => this.normalizeColumnRef(col)),
+      groupBy: query.groupBy?.map((col: any) => this.normalizeExpression(col)),
       having: query.having ? this.normalizePredicates(query.having) : undefined,
       setOperations: query.setOperations?.map((op: any) => ({
         type: op.type,

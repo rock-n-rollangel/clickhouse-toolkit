@@ -12,7 +12,9 @@ export interface QueryIR {
   tableAlias?: string
   columns?: ExprIR[]
   predicates: NormalizedPredicateNode[]
-  orderBy?: Array<{ column: string; direction: 'ASC' | 'DESC' }>
+  // ExprIR rather than a bare string, so an ORDER BY / GROUP BY key can be either an
+  // identifier (validated and quoted) or an explicit Raw() expression (emitted verbatim).
+  orderBy?: Array<{ column: ExprIR; direction: 'ASC' | 'DESC' }>
   limit?: number
   offset?: number
   final?: boolean
@@ -34,7 +36,7 @@ export interface QueryIR {
     alias: string
     query: QueryIR
   }>
-  groupBy?: string[]
+  groupBy?: ExprIR[]
   having?: NormalizedPredicateNode[]
   values?: Array<Primitive[]>
   set?: Record<string, Primitive>

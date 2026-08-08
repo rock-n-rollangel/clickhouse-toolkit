@@ -561,7 +561,7 @@ describe('SelectBuilder', () => {
 
       const { sql } = query.toSQL()
 
-      expect(sql).toBe('SELECT count(*) AS `totalUsers`, avg(age) AS `avgAge` FROM `users`')
+      expect(sql).toBe('SELECT count(*) AS `totalUsers`, avg(`age`) AS `avgAge` FROM `users`')
     })
 
     it('should handle mixed simple and aggregate columns', () => {
@@ -574,7 +574,7 @@ describe('SelectBuilder', () => {
       const { sql } = query.toSQL()
 
       expect(sql).toBe(
-        'SELECT `name` AS `userName`, count(id) AS `userCount`, sum(amount) AS `totalAmount` FROM `users`',
+        'SELECT `name` AS `userName`, count(`id`) AS `userCount`, sum(`amount`) AS `totalAmount` FROM `users`',
       )
     })
 
@@ -587,7 +587,7 @@ describe('SelectBuilder', () => {
       const { sql } = query.toSQL()
 
       expect(sql).toBe(
-        'SELECT upper(name) AS `upperName`, concat(first_name, " ", last_name) AS `fullName` FROM `users`',
+        'SELECT upper(`name`) AS `upperName`, concat(first_name, " ", last_name) AS `fullName` FROM `users`',
       )
     })
 

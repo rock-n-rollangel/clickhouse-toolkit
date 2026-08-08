@@ -97,7 +97,7 @@ describe('Subqueries', () => {
       const { sql } = query.toSQL()
 
       expect(sql).toContain('SELECT `id` AS `id`, `name` AS `name`')
-      expect(sql).toContain('(SELECT avg(age) FROM `users`) AS `avgAge`')
+      expect(sql).toContain('(SELECT avg(`age`) FROM `users`) AS `avgAge`')
     })
 
     it('should build correlated subquery in SELECT', () => {
@@ -148,7 +148,7 @@ describe('Subqueries', () => {
 
       const { sql } = query.toSQL()
 
-      expect(sql).toContain('WHERE `price` > (SELECT avg(price) FROM `products`)')
+      expect(sql).toContain('WHERE `price` > (SELECT avg(`price`) FROM `products`)')
     })
 
     it('should build subquery with Eq', () => {
@@ -160,7 +160,7 @@ describe('Subqueries', () => {
 
       const { sql } = query.toSQL()
 
-      expect(sql).toContain('WHERE `price` = (SELECT max(price) FROM `products`)')
+      expect(sql).toContain('WHERE `price` = (SELECT max(`price`) FROM `products`)')
     })
   })
 

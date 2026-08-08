@@ -49,7 +49,8 @@ describe('AST and IR Pipeline', () => {
       expect(ast.joins[0].alias).toBe('p')
       expect(ast.groupBy).toEqual([{ type: 'column', name: 'u.id' }])
       expect(ast.orderBy).toHaveLength(1)
-      expect(ast.orderBy[0].column.name).toBe('u.name')
+      // A string column normalizes to a ColumnRef; the union's other arm is RawExpr
+      expect(ast.orderBy[0].column).toEqual({ type: 'column', name: 'u.name' })
       expect(ast.orderBy[0].direction).toBe('ASC')
       expect(ast.limit).toBe(10)
     })

@@ -45,7 +45,7 @@ describe('Window functions', () => {
         .toSQL()
 
       expect(sql).toBe(
-        'SELECT sum(amount) OVER (PARTITION BY `user_id` ORDER BY `ts` ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS `running` FROM `events`',
+        'SELECT sum(`amount`) OVER (PARTITION BY `user_id` ORDER BY `ts` ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS `running` FROM `events`',
       )
     })
 
@@ -75,7 +75,7 @@ describe('Window functions', () => {
         .toSQL()
 
       expect(sql).toBe(
-        'SELECT lagInFrame(amount, 1, 0) OVER (PARTITION BY `user_id` ORDER BY `ts` ASC) AS `prev` FROM `events`',
+        'SELECT lagInFrame(`amount`, 1, 0) OVER (PARTITION BY `user_id` ORDER BY `ts` ASC) AS `prev` FROM `events`',
       )
     })
 
@@ -157,7 +157,7 @@ describe('Window functions', () => {
   describe('mixed with aggregates', () => {
     it('aggregate function used with .over() does not break plain GROUP BY use', () => {
       const { sql } = select({ total: Sum('amount') }).from('orders').groupBy(['user_id']).toSQL()
-      expect(sql).toBe('SELECT sum(amount) AS `total` FROM `orders` GROUP BY `user_id`')
+      expect(sql).toBe('SELECT sum(`amount`) AS `total` FROM `orders` GROUP BY `user_id`')
     })
   })
 
@@ -184,22 +184,22 @@ describe('Window functions', () => {
 
     it('renders Lead (emits leadInFrame)', () => {
       const { sql } = select({ r: Lead('amount').over({}) }).from('t').toSQL()
-      expect(sql).toBe('SELECT leadInFrame(amount) OVER () AS `r` FROM `t`')
+      expect(sql).toBe('SELECT leadInFrame(`amount`) OVER () AS `r` FROM `t`')
     })
 
     it('renders FirstValue', () => {
       const { sql } = select({ r: FirstValue('amount').over({}) }).from('t').toSQL()
-      expect(sql).toBe('SELECT first_value(amount) OVER () AS `r` FROM `t`')
+      expect(sql).toBe('SELECT first_value(`amount`) OVER () AS `r` FROM `t`')
     })
 
     it('renders LastValue', () => {
       const { sql } = select({ r: LastValue('amount').over({}) }).from('t').toSQL()
-      expect(sql).toBe('SELECT last_value(amount) OVER () AS `r` FROM `t`')
+      expect(sql).toBe('SELECT last_value(`amount`) OVER () AS `r` FROM `t`')
     })
 
     it('renders NthValue', () => {
       const { sql } = select({ r: NthValue('amount', 2).over({}) }).from('t').toSQL()
-      expect(sql).toBe('SELECT nth_value(amount, 2) OVER () AS `r` FROM `t`')
+      expect(sql).toBe('SELECT nth_value(`amount`, 2) OVER () AS `r` FROM `t`')
     })
   })
 })

@@ -94,7 +94,7 @@ export class ClickHouseRenderer extends LoggingComponent {
       if (query.columns && query.columns.length > 0) {
         sql += query.columns
           .map((col) => {
-            const columnExpr = this.renderExpression(col, 'select')
+            const columnExpr = this.renderExpression(col)
             return col.alias ? `${columnExpr} AS ${this.quoteIdentifier(col.alias)}` : columnExpr
           })
           .join(', ')
@@ -143,7 +143,7 @@ export class ClickHouseRenderer extends LoggingComponent {
 
       // GROUP BY
       if (query.groupBy && query.groupBy.length > 0) {
-        sql += ' GROUP BY ' + query.groupBy.map((col) => this.quoteIdentifier(col)).join(', ')
+        sql += ' GROUP BY ' + query.groupBy.map((col) => this.renderExpression(col)).join(', ')
       }
 
       // HAVING
@@ -168,7 +168,7 @@ export class ClickHouseRenderer extends LoggingComponent {
     }
 
     if (query.orderBy && query.orderBy.length > 0) {
-      sql += ' ORDER BY ' + query.orderBy.map((o) => `${this.quoteIdentifier(o.column)} ${o.direction}`).join(', ')
+      sql += ' ORDER BY ' + query.orderBy.map((o) => `${this.renderExpression(o.column)} ${o.direction}`).join(', ')
     }
 
     if (query.limit) {
@@ -415,15 +415,11 @@ export class ClickHouseRenderer extends LoggingComponent {
   /**
    * Render expression from structured IR
    */
-  private renderExpression(expr: ExprIR, context: 'select' | 'predicate' | 'function' = 'select'): string {
+  private renderExpression(expr: ExprIR): string {
     switch (expr.exprType) {
       case 'column':
         // TypeScript knows expr.columnName exists for 'column' type
         const colName = expr.tableName ? `${expr.tableName}.${expr.columnName}` : expr.columnName
-        // Don't quote column names when they're function arguments
-        if (context === 'function') {
-          return colName
-        }
         return this.quoteIdentifier(colName)
 
       case 'raw':
@@ -432,12 +428,12 @@ export class ClickHouseRenderer extends LoggingComponent {
 
       case 'function':
         // TypeScript knows expr.functionName and expr.functionArgs exist for 'function' type
-        const args = expr.functionArgs.map((arg) => this.renderExpression(arg, 'function')).join(', ')
+        const args = expr.functionArgs.map((arg) => this.renderExpression(arg)).join(', ')
 
         // Special handling for CAST
         if (expr.functionName === 'cast' && expr.functionArgs.length === 2) {
-          const value = this.renderExpression(expr.functionArgs[0], 'function')
-          const type = this.renderExpression(expr.functionArgs[1], 'function')
+          const value = this.renderExpression(expr.functionArgs[0])
+          const type = this.renderExpression(expr.functionArgs[1])
           return `CAST(${value} AS ${type})`
         }
 
@@ -448,12 +444,12 @@ export class ClickHouseRenderer extends LoggingComponent {
         const cases = expr.caseCases
           .map((c) => {
             const condition = this.renderPredicateNode(c.condition)
-            const thenVal = this.renderExpression(c.then, 'select')
+            const thenVal = this.renderExpression(c.then)
             return `WHEN ${condition} THEN ${thenVal}`
           })
           .join(' ')
 
-        const elseClause = expr.caseElse ? ` ELSE ${this.renderExpression(expr.caseElse, 'select')}` : ''
+        const elseClause = expr.caseElse ? ` ELSE ${this.renderExpression(expr.caseElse)}` : ''
 
         return `CASE ${cases}${elseClause} END`
 
@@ -491,7 +487,7 @@ export class ClickHouseRenderer extends LoggingComponent {
   }
 
   private renderWindowExpr(expr: WindowExprIR): string {
-    const fnSql = this.renderExpression(expr.fn, 'select')
+    const fnSql = this.renderExpression(expr.fn)
     if (expr.ref.kind === 'named') {
       if (!this.declaredWindows.has(expr.ref.name)) {
         throw createValidationError(

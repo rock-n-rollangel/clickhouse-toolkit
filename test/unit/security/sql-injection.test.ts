@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { select, Eq, Raw } from '../../../src/index'
+import { select, Eq, Raw, Sum, Count, Avg } from '../../../src/index'
 import { ClickHouseValueFormatter, ValueFormatter } from '../../../src/render/value-formatter'
 
 // The measure key that leaked 31 tenants' data through a query scoped to one.
@@ -96,6 +96,103 @@ describe('SQL injection regressions', () => {
       const query = select(['id']).from('events').groupBy(['a`, (SELECT 1) AS `b'])
 
       expect(() => query.toSQL()).toThrow(/is not a valid identifier/)
+    })
+  })
+
+  describe('GROUP BY / ORDER BY relocate the capability to Raw()', () => {
+    // 3.0.0 rejects a bare 'toDate(created_at)' string, so both clauses gained a
+    // RawExpr slot. The capability moves to an explicit API; it is not removed.
+    it('groups by an expression passed through Raw()', () => {
+      const { sql } = select(['id'])
+        .from('events')
+        .groupBy([Raw('toDate(created_at)')])
+        .toSQL()
+
+      expect(sql).toBe('SELECT `id` FROM `events` GROUP BY toDate(created_at)')
+    })
+
+    it('orders by an expression passed through Raw()', () => {
+      const { sql } = select(['id'])
+        .from('events')
+        .orderBy([{ column: Raw('sum(value)'), direction: 'DESC' }])
+        .toSQL()
+
+      expect(sql).toBe('SELECT `id` FROM `events` ORDER BY sum(value) DESC')
+    })
+
+    it('mixes identifier and Raw keys in one clause', () => {
+      const { sql } = select(['id'])
+        .from('events')
+        .groupBy(['node_id', Raw('toDate(created_at)')])
+        .orderBy([
+          { column: Raw('sum(value)'), direction: 'DESC' },
+          { column: 'node_id', direction: 'ASC' },
+        ])
+        .toSQL()
+
+      expect(sql).toBe(
+        'SELECT `id` FROM `events` GROUP BY `node_id`, toDate(created_at) ' + 'ORDER BY sum(value) DESC, `node_id` ASC',
+      )
+    })
+
+    it('still validates the plain-string arm of both clauses', () => {
+      expect(() => select(['id']).from('events').groupBy(['node_id', 'toDate(created_at)']).toSQL()).toThrow(
+        /is not a valid identifier/,
+      )
+      expect(() =>
+        select(['id'])
+          .from('events')
+          .orderBy([{ column: 'sum(value)', direction: 'DESC' }])
+          .toSQL(),
+      ).toThrow(/is not a valid identifier/)
+    })
+  })
+
+  describe('function arguments are quoted, not trusted', () => {
+    // Column names passed as function arguments used to be returned unquoted, so the
+    // typed helpers - the path the docs steer callers to - were themselves an injection
+    // vector. This is the payload verified through the built library.
+    const FN_ARG_PAYLOAD = 'x) , (SELECT groupArray(node_id) FROM events'
+
+    it('rejects the injected column name passed through Sum()', () => {
+      const query = select({ leak: Sum(FN_ARG_PAYLOAD) }).from('events')
+
+      expect(() => query.toSQL()).toThrow(/is not a valid identifier/)
+    })
+
+    it('rejects it through the other aggregate helpers too', () => {
+      expect(() =>
+        select([Count(FN_ARG_PAYLOAD)])
+          .from('events')
+          .toSQL(),
+      ).toThrow(/is not a valid identifier/)
+      expect(() =>
+        select([Avg(FN_ARG_PAYLOAD)])
+          .from('events')
+          .toSQL(),
+      ).toThrow(/is not a valid identifier/)
+    })
+
+    it('quotes ordinary column arguments instead of inlining them', () => {
+      const { sql } = select({ total: Sum('amount') })
+        .from('events')
+        .toSQL()
+
+      expect(sql).toBe('SELECT sum(`amount`) AS `total` FROM `events`')
+    })
+
+    it('still renders count(*), whose argument is a star and not an identifier', () => {
+      const { sql } = select([Count()]).from('events').toSQL()
+
+      expect(sql).toBe('SELECT count(*) FROM `events`')
+    })
+
+    it('still allows a deliberate expression argument through Raw()', () => {
+      const { sql } = select({ total: Sum(Raw('if(ok, value, 0)')) })
+        .from('events')
+        .toSQL()
+
+      expect(sql).toBe('SELECT sum(if(ok, value, 0)) AS `total` FROM `events`')
     })
 
     it('still accepts SQL passed explicitly through Raw()', () => {

@@ -95,6 +95,16 @@ export interface OrderSpec {
   direction: 'ASC' | 'DESC'
 }
 
+/**
+ * ORDER BY entry for a top-level SELECT. Unlike the window-level OrderSpec it also
+ * accepts a RawExpr, so an expression can be ordered by explicitly - Raw('sum(v)') -
+ * now that a bare 'sum(v)' string is rejected as a non-identifier.
+ */
+export interface SelectOrderSpec {
+  column: ColumnRef | RawExpr
+  direction: 'ASC' | 'DESC'
+}
+
 export type FrameBound =
   | 'UNBOUNDED PRECEDING'
   | 'CURRENT ROW'
@@ -153,9 +163,9 @@ export interface SelectNode {
   with?: WithClause[]
   prewhere?: PredicateNode
   where?: PredicateNode
-  groupBy?: ColumnRef[]
+  groupBy?: (ColumnRef | RawExpr)[]
   having?: PredicateNode
-  orderBy?: OrderSpec[]
+  orderBy?: SelectOrderSpec[]
   limit?: number
   offset?: number
   final?: boolean

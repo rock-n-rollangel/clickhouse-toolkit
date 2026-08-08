@@ -247,9 +247,15 @@ export class SelectBuilder extends WhereBuilder<SelectNode> {
     return this
   }
 
-  // GROUP BY clause
-  groupBy(columns: string[]): this {
-    this.query.groupBy = columns.map((col) => ({ type: 'column', name: col }))
+  /**
+   * GROUP BY clause.
+   *
+   * A plain string is treated as an identifier and is validated and quoted. To group
+   * by an expression, pass it through Raw() - `groupBy([Raw('toDate(created_at)')])` -
+   * which states explicitly that the caller authored that SQL.
+   */
+  groupBy(columns: (string | RawExpr)[]): this {
+    this.query.groupBy = columns.map((col) => (typeof col === 'string' ? { type: 'column', name: col } : col))
     return this
   }
 
@@ -259,10 +265,16 @@ export class SelectBuilder extends WhereBuilder<SelectNode> {
     return this
   }
 
-  // ORDER BY clause
-  orderBy(specs: Array<{ column: string; direction: 'ASC' | 'DESC' }>): this {
+  /**
+   * ORDER BY clause.
+   *
+   * As with groupBy, a string column is validated and quoted as an identifier; an
+   * expression must be passed through Raw(), e.g.
+   * `orderBy([{ column: Raw('sum(value)'), direction: 'DESC' }])`.
+   */
+  orderBy(specs: Array<{ column: string | RawExpr; direction: 'ASC' | 'DESC' }>): this {
     this.query.orderBy = specs.map((spec) => ({
-      column: { type: 'column', name: spec.column },
+      column: typeof spec.column === 'string' ? { type: 'column' as const, name: spec.column } : spec.column,
       direction: spec.direction,
     }))
     return this

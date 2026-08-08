@@ -86,12 +86,27 @@ select(['sum(value)'])                 →  select([Raw('sum(value)')])      // 
 select(['status', 'count()'])          →  select(['status', Raw('count()')])
 select({ total: 'sum(amount)' })       →  select({ total: Raw('sum(amount)') })
 .having({ 'count()': Gt(5) })          →  .having(Raw('count() > 5'))
+.groupBy(['toDate(created_at)'])       →  .groupBy([Raw('toDate(created_at)')])
+.orderBy([{ column: 'sum(v)', … }])    →  .orderBy([{ column: Raw('sum(v)'), … }])
 ```
 
 The one-line rule: **`'sum(value)'` → `Raw('sum(value)')`**.
 
-`GROUP BY` and `ORDER BY` take plain strings, so an expression there has no `Raw()`
-slot. Alias the expression in the `SELECT` list and group/order by the alias:
+`groupBy()` and `orderBy()`'s `column` accept a `RawExpr` alongside plain identifier
+strings — a **non-breaking addition in 3.0.0**, so expression-based grouping and
+ordering keeps working through an explicit, greppable API. Keys of both kinds mix
+freely:
+
+```typescript
+select(['id'])
+  .from('events')
+  .groupBy(['node_id', Raw('toDate(created_at)')])
+  .orderBy([{ column: Raw('sum(value)'), direction: 'DESC' }])
+// SELECT `id` FROM `events` GROUP BY `node_id`, toDate(created_at) ORDER BY sum(value) DESC
+```
+
+Aliasing the expression in the `SELECT` list and grouping by the alias remains a good
+alternative, especially when the same expression is both selected and grouped:
 
 ```typescript
 select({ day: Raw('toDate(created_at)'), total: Sum('value') })
@@ -103,6 +118,26 @@ select({ day: Raw('toDate(created_at)'), total: Sum('value') })
 Note that `Raw()` bypasses all escaping by design. If the string is built from user
 input, that input is now your responsibility — which is precisely the distinction 2.x
 could not express.
+
+### Function arguments are quoted
+
+**What changed.** Column names passed as function arguments were emitted **unquoted**,
+which made the typed helpers themselves an injection vector — the opposite of what
+callers reasonably assume of `Sum()` / `Count()` / `Avg()`:
+
+```typescript
+select({ leak: Sum("x) , (SELECT groupArray(node_id) FROM events") })
+// 2.x: SELECT sum(x) , (SELECT groupArray(node_id) FROM events) AS `leak` FROM `events`
+// 3.0.0: throws ValidationError
+```
+
+Arguments are now validated and quoted like any other identifier. The exemption
+existed only to make generated SQL prettier; nothing depended on it semantically.
+
+**Migration.** Output changes cosmetically — `sum(amount)` is now ``sum(`amount`)``,
+which is equivalent SQL. Only snapshot tests that compare SQL text are affected. An
+argument that is deliberately an expression goes through `Raw()`, as everywhere else:
+`Sum(Raw('if(ok, value, 0)'))`.
 
 ### String values escape backslashes
 
