@@ -28,6 +28,7 @@ import { Logger, LoggingComponent } from '../core/logger'
 const ORDER_DIRECTIONS = ['ASC', 'DESC'] as const
 const FRAME_TYPES = ['ROWS', 'RANGE'] as const
 const FRAME_BOUND_LITERALS = ['UNBOUNDED PRECEDING', 'CURRENT ROW', 'UNBOUNDED FOLLOWING'] as const
+const JOIN_TYPES = ['INNER', 'LEFT', 'RIGHT', 'FULL', 'CROSS'] as const
 
 export class ClickHouseRenderer extends LoggingComponent {
   private valueFormatter = new ClickHouseValueFormatter()
@@ -459,7 +460,10 @@ export class ClickHouseRenderer extends LoggingComponent {
           return `CAST(${value} AS ${type})`
         }
 
-        return `${expr.functionName}(${args})`
+        // The last raw path in the renderer. Only a hand-built AST supplies a function
+        // name today - the helpers in sql-functions.ts all pass fixed literals - but
+        // Raw() is the supported route for anyone who genuinely wants to author SQL.
+        return `${this.renderUnquotedIdentifier(expr.functionName, 'function name')}(${args})`
 
       case 'case':
         // TypeScript knows expr.caseCases exists for 'case' type
@@ -642,7 +646,13 @@ export class ClickHouseRenderer extends LoggingComponent {
     global?: boolean,
   ): string {
     const globalStr = global ? 'GLOBAL ' : ''
-    const kindUpper = type.toUpperCase()
+    // Validated, not merely uppercased. SelectBuilder.join() takes the type as a caller
+    // parameter, so this is reachable through the ordinary public API - not only from a
+    // hand-built AST. A type of 'inner JOIN Z ON 1=1 --' rendered
+    //   FROM `e` INNER JOIN Z ON 1=1 -- JOIN `p` ON ...
+    // where the trailing comment truncates the real join, silently joining an
+    // attacker-chosen table. (strictness, on the same method, was already validated.)
+    const kindUpper = this.renderKeyword(type, JOIN_TYPES, 'join type')
 
     if (!strictness) {
       return `${globalStr}${kindUpper}`
