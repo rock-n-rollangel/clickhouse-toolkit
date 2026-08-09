@@ -9,6 +9,7 @@ import { Migration, FileMigration, MigrationStep } from './migration'
 import { MigrationPlan } from './migration-plan'
 import { splitSqlStatements } from './sql-statements'
 import { createMigrationError } from '../core/errors'
+import { assertSqlIdentifier } from '../core/validator'
 import { createLoggerContext } from '../core/logger'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -56,6 +57,11 @@ export class Migrator {
       tsMigrationsPattern: '*.ts',
       ...options,
     }
+    // The migrations table name is interpolated into CREATE TABLE / SELECT / INSERT /
+    // DELETE, and it comes from configuration (CLICKHOUSE_MIGRATIONS_TABLE_NAME via the
+    // CLI), not from a hand-built AST. Validated once here so every use site is covered
+    // and a bad value fails at construction rather than mid-migration.
+    assertSqlIdentifier(this.options.migrationsTableName, 'migrationsTableName', true)
     this.driftDetection = new DriftDetection(runner)
   }
 

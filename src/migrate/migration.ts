@@ -5,6 +5,7 @@
 import { QueryRunner } from '../runner/query-runner'
 import { MigratorOptions } from './migrator'
 import { createHash } from 'crypto'
+import { assertSqlIdentifier } from '../core/validator'
 
 export interface MigrationStep {
   type: 'create_table' | 'drop_table' | 'alter_table' | 'create_view' | 'drop_view' | 'insert_data' | 'custom'
@@ -56,6 +57,8 @@ export abstract class Migration {
    */
   protected async executeSQL(runner: QueryRunner, sql: string, options: MigratorOptions): Promise<void> {
     if (options.cluster) {
+      // Interpolated straight into DDL, and sourced from CLICKHOUSE_CLUSTER.
+      assertSqlIdentifier(options.cluster, 'cluster')
       sql = sql.replace(/CREATE TABLE/g, 'CREATE TABLE ON CLUSTER ' + options.cluster)
       sql = sql.replace(/DROP TABLE/g, 'DROP TABLE ON CLUSTER ' + options.cluster)
       sql = sql.replace(/ALTER TABLE/g, 'ALTER TABLE ON CLUSTER ' + options.cluster)

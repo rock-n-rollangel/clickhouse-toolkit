@@ -7,6 +7,39 @@ import { ValidationResult } from './ir'
 import { ValidationError, createValidationError } from './errors'
 import { Logger, LoggingComponent } from './logger'
 
+const PLAIN_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+
+/**
+ * Assert that a value is shaped like a SQL identifier, for the places where a name is
+ * interpolated into a statement rather than passed as a value.
+ *
+ * Used by the migrator, where the stakes are higher than in a SELECT: these names reach
+ * CREATE / ALTER / DROP and run with whatever privileges the migration runner holds, and
+ * they arrive from configuration and environment variables - CLICKHOUSE_MIGRATIONS_TABLE_NAME,
+ * CLICKHOUSE_CLUSTER - so a type annotation guarantees nothing about them at runtime.
+ *
+ * `qualified` additionally permits a single db.table prefix, each part validated.
+ */
+export function assertSqlIdentifier(value: unknown, field: string, qualified = false): string {
+  const parts = typeof value === 'string' && qualified ? value.split('.') : [value]
+  const valid =
+    typeof value === 'string' &&
+    parts.length <= 2 &&
+    parts.every((part) => typeof part === 'string' && PLAIN_IDENTIFIER.test(part))
+
+  if (!valid) {
+    throw createValidationError(
+      `Invalid ${field}: ${JSON.stringify(value)} must be a plain identifier` +
+        `${qualified ? ' (optionally qualified as db.table)' : ''} - ` +
+        `letters, digits and underscores, not starting with a digit.`,
+      undefined,
+      field,
+      value as never,
+    )
+  }
+  return value as string
+}
+
 export class QueryValidator extends LoggingComponent {
   constructor(logger?: Logger) {
     super(logger, 'QueryValidator')
