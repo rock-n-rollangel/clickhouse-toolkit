@@ -21,6 +21,14 @@ import { createValidationError } from '../core/errors'
 import { ClickHouseValueFormatter } from './value-formatter'
 import { Logger, LoggingComponent } from '../core/logger'
 
+/**
+ * Closed keyword sets that the IR types declare but cannot enforce at runtime.
+ * Kept beside the renderer because that is where they are emitted.
+ */
+const ORDER_DIRECTIONS = ['ASC', 'DESC'] as const
+const FRAME_TYPES = ['ROWS', 'RANGE'] as const
+const FRAME_BOUND_LITERALS = ['UNBOUNDED PRECEDING', 'CURRENT ROW', 'UNBOUNDED FOLLOWING'] as const
+
 export class ClickHouseRenderer extends LoggingComponent {
   private valueFormatter = new ClickHouseValueFormatter()
   private declaredWindows: Set<string> = new Set()
@@ -162,13 +170,17 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     if (query.windows && Object.keys(query.windows).length > 0) {
       const windowDecls = Object.entries(query.windows)
-        .map(([name, spec]) => `${name} AS (${this.renderWindowSpec(spec)})`)
+        .map(
+          ([name, spec]) => `${this.renderUnquotedIdentifier(name, 'window name')} AS (${this.renderWindowSpec(spec)})`,
+        )
         .join(', ')
       sql += ` WINDOW ${windowDecls}`
     }
 
     if (query.orderBy && query.orderBy.length > 0) {
-      sql += ' ORDER BY ' + query.orderBy.map((o) => `${this.renderExpression(o.column)} ${o.direction}`).join(', ')
+      sql +=
+        ' ORDER BY ' +
+        query.orderBy.map((o) => `${this.renderExpression(o.column)} ${this.renderDirection(o.direction)}`).join(', ')
     }
 
     // Nullish, not falsy: `limit: 0` is a legitimate query meaning "no rows".
@@ -188,7 +200,9 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     if (query.settings) {
       const settings = Object.entries(query.settings)
-        .map(([key, value]) => `${key} = ${this.formatSettingValue(value)}`)
+        .map(
+          ([key, value]) => `${this.renderUnquotedIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`,
+        )
         .join(', ')
       sql += ` SETTINGS ${settings}`
     }
@@ -256,7 +270,9 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     if (query.settings) {
       const settings = Object.entries(query.settings)
-        .map(([key, value]) => `${key} = ${this.formatSettingValue(value)}`)
+        .map(
+          ([key, value]) => `${this.renderUnquotedIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`,
+        )
         .join(', ')
       sql += ` SETTINGS ${settings}`
     }
@@ -273,7 +289,9 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     if (query.settings) {
       const settings = Object.entries(query.settings)
-        .map(([key, value]) => `${key} = ${this.formatSettingValue(value)}`)
+        .map(
+          ([key, value]) => `${this.renderUnquotedIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`,
+        )
         .join(', ')
       sql += ` SETTINGS ${settings}`
     }
@@ -501,7 +519,7 @@ export class ClickHouseRenderer extends LoggingComponent {
           expr.ref.name,
         )
       }
-      return `${fnSql} OVER ${expr.ref.name}`
+      return `${fnSql} OVER ${this.renderUnquotedIdentifier(expr.ref.name, 'window name')}`
     }
     this.validateFrameBoundOrder(expr.ref.spec)
     return `${fnSql} OVER (${this.renderWindowSpec(expr.ref.spec)})`
@@ -563,16 +581,20 @@ export class ClickHouseRenderer extends LoggingComponent {
     }
 
     if (spec.orderBy && spec.orderBy.length > 0) {
-      parts.push(`ORDER BY ${spec.orderBy.map((o) => `${this.quoteIdentifier(o.column)} ${o.direction}`).join(', ')}`)
+      parts.push(
+        `ORDER BY ${spec.orderBy
+          .map((o) => `${this.quoteIdentifier(o.column)} ${this.renderDirection(o.direction)}`)
+          .join(', ')}`,
+      )
     }
 
     if (spec.frame) {
       const start = this.renderFrameBound(spec.frame.start)
       if (spec.frame.end) {
         const end = this.renderFrameBound(spec.frame.end)
-        parts.push(`${spec.frame.type} BETWEEN ${start} AND ${end}`)
+        parts.push(`${this.renderFrameType(spec.frame.type)} BETWEEN ${start} AND ${end}`)
       } else {
-        parts.push(`${spec.frame.type} ${start}`)
+        parts.push(`${this.renderFrameType(spec.frame.type)} ${start}`)
       }
     }
 
@@ -580,9 +602,11 @@ export class ClickHouseRenderer extends LoggingComponent {
   }
 
   private renderFrameBound(b: NormalizedFrameBound): string {
-    if (b.kind === 'literal') return b.value
-    if (b.kind === 'preceding') return `${b.offset} PRECEDING`
-    return `${b.offset} FOLLOWING`
+    if (b.kind === 'literal') {
+      return this.renderKeyword(b.value, FRAME_BOUND_LITERALS, 'frame bound')
+    }
+    if (b.kind === 'preceding') return `${this.renderRowCount(b.offset, 'frame offset')} PRECEDING`
+    return `${this.renderRowCount(b.offset, 'frame offset')} FOLLOWING`
   }
 
   /**
@@ -708,7 +732,7 @@ export class ClickHouseRenderer extends LoggingComponent {
    * the resulting SQL anyway, and failing here names the offending field
    * instead of surfacing a server-side syntax error.
    */
-  private renderRowCount(value: unknown, field: 'limit' | 'offset'): string {
+  private renderRowCount(value: unknown, field: 'limit' | 'offset' | 'frame offset'): string {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
       throw createValidationError(
         `Invalid ${field}: expected a non-negative safe integer, received ${JSON.stringify(value)}`,
@@ -718,6 +742,70 @@ export class ClickHouseRenderer extends LoggingComponent {
       )
     }
     return String(value)
+  }
+
+  /**
+   * Render a field whose type declares a closed set of keywords - 'ASC' | 'DESC',
+   * 'ROWS' | 'RANGE', the frame-bound literals.
+   *
+   * These were interpolated raw because the type annotation was mistaken for a runtime
+   * guarantee. Types are erased at runtime, so a value from JSON, a query string, plain
+   * JavaScript or a hand-built AST walked straight through. The ORDER BY direction was
+   * the worst of them: sitting mid-query, it swallowed every clause that followed.
+   *
+   *   .orderBy([{ column: 'a', direction: 'ASC LIMIT 1 UNION ALL SELECT ... --' }]).limit(5)
+   *   -> SELECT `a` FROM `e` ORDER BY `a` ASC LIMIT 1 UNION ALL SELECT ... -- LIMIT 5
+   *
+   * The trailing comment deleted the query's own LIMIT. Matching is case-insensitive and
+   * the canonical spelling is emitted, so valid input renders byte-identically.
+   */
+  private renderKeyword<T extends string>(value: unknown, allowed: readonly T[], field: string): T {
+    const match =
+      typeof value === 'string'
+        ? allowed.find((candidate) => candidate.toLowerCase() === value.toLowerCase())
+        : undefined
+
+    if (match === undefined) {
+      throw createValidationError(
+        `Invalid ${field}: expected one of ${allowed.map((a) => `'${a}'`).join(', ')}, received ${JSON.stringify(value)}`,
+        undefined,
+        field,
+        value as never,
+      )
+    }
+    return match
+  }
+
+  /** ORDER BY direction, for both the top-level clause and window specs. */
+  private renderDirection(value: unknown): string {
+    return this.renderKeyword(value, ORDER_DIRECTIONS, 'order direction')
+  }
+
+  /** Window frame type. */
+  private renderFrameType(value: unknown): string {
+    return this.renderKeyword(value, FRAME_TYPES, 'frame type')
+  }
+
+  /**
+   * Validate an identifier that is emitted *without* backticks - a WINDOW name or a
+   * SETTINGS key. Both were interpolated raw, so a window name could declare arbitrary
+   * window definitions and a settings key could inject `FORMAT JSON --`, changing the
+   * response format and truncating the rest of the statement.
+   *
+   * Stricter than quoteIdentifier: hyphens are rejected here because there are no
+   * backticks to contain them - unquoted, a hyphen would parse as an operator.
+   */
+  private renderUnquotedIdentifier(value: unknown, field: string): string {
+    if (typeof value !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
+      throw createValidationError(
+        `Invalid ${field}: '${String(value)}' must be a plain identifier ` +
+          `(letters, digits and underscores, not starting with a digit).`,
+        undefined,
+        field,
+        value as never,
+      )
+    }
+    return value
   }
 
   private quoteIdentifier(identifier: string): string {
