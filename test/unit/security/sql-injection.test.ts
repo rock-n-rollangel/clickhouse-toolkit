@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { select, Eq, Raw, Sum, Count, Avg } from '../../../src/index'
+import { select, update, deleteFrom, Eq, Raw, Sum, Count, Avg } from '../../../src/index'
 import { ClickHouseValueFormatter, ValueFormatter } from '../../../src/render/value-formatter'
 
 // The measure key that leaked 31 tenants' data through a query scoped to one.
@@ -267,6 +267,181 @@ describe('SQL injection regressions', () => {
       const outside = sqlOutsideLiterals(sql)
       expect(outside).not.toContain('OR 1=1')
       expect(outside).not.toContain('--')
+    })
+  })
+})
+
+describe('narrowly-typed fields are validated at render time', () => {
+  // Each of these is a field whose TYPE already declares a closed set - 'ASC' | 'DESC',
+  // 'ROWS' | 'RANGE', number - which the renderer treated as a runtime guarantee.
+  // Types are erased at runtime, so JSON, a query string, plain JS or a hand-built AST
+  // reached these unchecked. Payloads below are the ones verified against the library.
+
+  describe('ORDER BY direction', () => {
+    // The worst of the set: mid-query, so the trailing comment swallowed the real LIMIT.
+    const DIRECTION_PAYLOAD = 'ASC LIMIT 1 UNION ALL SELECT groupArray(id) FROM e --'
+
+    it('rejects an injected direction in the top-level ORDER BY', () => {
+      const query = select(['a'])
+        .from('e')
+        .orderBy([{ column: 'a', direction: DIRECTION_PAYLOAD as never }])
+        .limit(5)
+
+      expect(() => query.toSQL()).toThrow(/Invalid order direction/)
+    })
+
+    it('rejects an injected direction in a window ORDER BY', () => {
+      const query = select({
+        r: Sum('v').over({
+          orderBy: [{ column: { type: 'column', name: 'a' }, direction: 'ASC) , (SELECT 1' as never }],
+        }),
+      }).from('e')
+
+      expect(() => query.toSQL()).toThrow(/Invalid order direction/)
+    })
+
+    it('still renders valid directions byte-identically', () => {
+      const { sql } = select(['a'])
+        .from('e')
+        .orderBy([
+          { column: 'a', direction: 'ASC' },
+          { column: 'b', direction: 'DESC' },
+        ])
+        .toSQL()
+
+      expect(sql).toBe('SELECT `a` FROM `e` ORDER BY `a` ASC, `b` DESC')
+    })
+
+    it('accepts lowercase and emits the canonical spelling', () => {
+      const { sql } = select(['a'])
+        .from('e')
+        .orderBy([{ column: 'a', direction: 'asc' as never }])
+        .toSQL()
+
+      expect(sql).toBe('SELECT `a` FROM `e` ORDER BY `a` ASC')
+    })
+  })
+
+  describe('window names', () => {
+    const WINDOW_PAYLOAD = 'w) AS (), evil AS ('
+
+    it('rejects an injected WINDOW declaration name', () => {
+      const query = select(['a'])
+        .from('e')
+        .window(WINDOW_PAYLOAD, { partitionBy: ['x'] })
+
+      expect(() => query.toSQL()).toThrow(/Invalid window name/)
+    })
+
+    it('rejects an injected OVER name even when it was declared', () => {
+      // The OVER site renders before the WINDOW declaration, so it is independently
+      // reachable - "safe because another check runs first" is not a guarantee.
+      const query = select({ r: Sum('v').over(WINDOW_PAYLOAD) })
+        .from('e')
+        .window(WINDOW_PAYLOAD, { partitionBy: ['x'] })
+
+      expect(() => query.toSQL()).toThrow(/Invalid window name/)
+    })
+
+    it('still renders a valid named window byte-identically', () => {
+      const { sql } = select({ r: Sum('v').over('w') })
+        .from('e')
+        .window('w', { partitionBy: ['x'] })
+        .toSQL()
+
+      expect(sql).toBe('SELECT sum(`v`) OVER w AS `r` FROM `e` WINDOW w AS (PARTITION BY `x`)')
+    })
+  })
+
+  describe('SETTINGS keys', () => {
+    // Injecting FORMAT changes the response format; the trailing -- truncates the rest.
+    const SETTINGS_PAYLOAD = 'max_threads=1 FORMAT JSON -- '
+
+    it('rejects an injected settings key on SELECT', () => {
+      const query = select(['a'])
+        .from('e')
+        .settings({ [SETTINGS_PAYLOAD]: 1 })
+
+      expect(() => query.toSQL()).toThrow(/Invalid settings key/)
+    })
+
+    it('rejects an injected settings key on UPDATE', () => {
+      const query = update('e')
+        .set({ a: 1 })
+        .where({ id: Eq(1) })
+        .settings({ [SETTINGS_PAYLOAD]: 1 })
+
+      expect(() => query.toSQL()).toThrow(/Invalid settings key/)
+    })
+
+    it('rejects an injected settings key on DELETE', () => {
+      const query = deleteFrom('e')
+        .where({ id: Eq(1) })
+        .settings({ [SETTINGS_PAYLOAD]: 1 })
+
+      expect(() => query.toSQL()).toThrow(/Invalid settings key/)
+    })
+
+    it('still renders valid settings byte-identically', () => {
+      const { sql } = select(['a']).from('e').settings({ max_execution_time: 30 }).toSQL()
+
+      expect(sql).toBe('SELECT `a` FROM `e` SETTINGS max_execution_time = 30')
+    })
+  })
+
+  describe('window frame type and offset', () => {
+    it('rejects an injected frame type', () => {
+      const query = select({
+        r: Sum('v').over({ frame: { type: 'ROWS) , (SELECT 1' as never, start: 'CURRENT ROW' } }),
+      }).from('e')
+
+      expect(() => query.toSQL()).toThrow(/Invalid frame type/)
+    })
+
+    it('rejects a non-numeric frame offset', () => {
+      const query = select({
+        r: Sum('v').over({ frame: { type: 'ROWS', start: { preceding: '1 UNION ALL SELECT 9' as never } } }),
+      }).from('e')
+
+      expect(() => query.toSQL()).toThrow(/Invalid frame offset/)
+    })
+
+    it('rejects an unknown frame bound literal', () => {
+      const query = select({
+        r: Sum('v').over({ frame: { type: 'ROWS', start: 'CURRENT ROW) , (SELECT 1' as never } }),
+      }).from('e')
+
+      expect(() => query.toSQL()).toThrow(/Invalid frame bound/)
+    })
+
+    it('still renders a valid frame byte-identically', () => {
+      const { sql } = select({
+        r: Sum('v').over({ frame: { type: 'ROWS', start: { preceding: 5 } } }),
+      })
+        .from('e')
+        .toSQL()
+
+      expect(sql).toBe('SELECT sum(`v`) OVER (ROWS 5 PRECEDING) AS `r` FROM `e`')
+    })
+  })
+
+  describe('formatNumber', () => {
+    const formatter = new ClickHouseValueFormatter()
+
+    it('rejects a non-number rather than relying on isNaN coercion', () => {
+      expect(() => formatter.formatNumber('1 UNION ALL SELECT 9' as never)).toThrow(/Expected number/)
+    })
+
+    it('rejects a numeric-looking string that used to be emitted verbatim', () => {
+      // isNaN('0x10') is false, so this rendered as the raw token 0x10
+      expect(() => formatter.formatNumber('0x10' as never)).toThrow(/Expected number/)
+    })
+
+    it('still formats real numbers and the special values', () => {
+      expect(formatter.formatNumber(42)).toBe('42')
+      expect(formatter.formatNumber(NaN)).toBe('NULL')
+      expect(formatter.formatNumber(Infinity)).toBe("'inf'")
+      expect(formatter.formatNumber(null as never)).toBe('NULL')
     })
   })
 })

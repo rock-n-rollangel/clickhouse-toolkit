@@ -168,6 +168,42 @@ offending field instead of surfacing a server-side syntax error.
 validate that value before it reaches the builder if it came from a request. If anything
 relied on `limit(0)` meaning "unlimited", it was relying on a bug — omit the call instead.
 
+### Keyword and name fields are validated at render time
+
+**What changed.** Several fields whose *types* declare a closed set — `'ASC' | 'DESC'`,
+`'ROWS' | 'RANGE'`, window names, `SETTINGS` keys, frame offsets — were interpolated raw,
+because the type annotation was mistaken for a runtime guarantee. Types are erased at
+runtime, so values from JSON, a query string, plain JavaScript or a hand-built AST walked
+straight through. All are now validated where they are emitted.
+
+The `ORDER BY` direction was the most dangerous, because it sits mid-query and so
+swallowed every clause that followed:
+
+```typescript
+select(['a'])
+  .from('e')
+  .orderBy([{ column: 'a', direction: 'ASC LIMIT 1 UNION ALL SELECT groupArray(id) FROM e --' }])
+  .limit(5)
+// 2.x:   SELECT `a` FROM `e` ORDER BY `a` ASC LIMIT 1 UNION ALL SELECT groupArray(id) FROM e -- LIMIT 5
+// 3.0.0: throws ValidationError
+```
+
+The trailing `--` deleted the query's own `LIMIT 5`. The same field on a window `ORDER BY`
+had the identical hole. Also closed: window declaration names and `OVER` names
+(`.window('w) AS (), evil AS (', …)`), `SETTINGS` keys on `SELECT`/`UPDATE`/`DELETE`
+(`{'max_threads=1 FORMAT JSON -- ': 1}` injected a `FORMAT` change and truncated the
+statement), and window frame `type`, bound literals and offsets.
+
+`formatNumber` is now type-checked too. `isNaN()` coercion rejected most non-numeric
+strings by accident, but anything `Number()` could parse was emitted verbatim —
+`formatNumber('0x10')` rendered the raw token `0x10`.
+
+**Migration.** None for valid input: directions, frame types and bound literals render
+byte-identically, and lowercase spellings (`'asc'`) are accepted and normalised to the
+canonical form. You only need to act if you were passing something outside the declared
+set. Window names and `SETTINGS` keys must be plain identifiers — letters, digits and
+underscores, not starting with a digit — since both are emitted without backticks.
+
 ### String values escape backslashes
 
 **What changed.** `formatString` doubled `'` but left `\` untouched. This was a
