@@ -47,7 +47,21 @@ export class ClickHouseValueFormatter implements ValueFormatter {
    * Format a number value (no quotes needed)
    */
   formatNumber(value: number): string {
-    if (value === null || value === undefined || isNaN(value)) {
+    if (value === null || value === undefined) {
+      return 'NULL'
+    }
+
+    // Check the type deliberately rather than relying on isNaN()'s coercion. isNaN()
+    // happened to reject non-numeric strings - isNaN('1; DROP TABLE x') is true, so it
+    // returned NULL - but that safety was incidental, not designed: the value is
+    // interpolated into SQL unquoted, so anything that survives to `toString()` is
+    // emitted verbatim. A type annotation is not a runtime boundary, and this method is
+    // public: JavaScript callers, JSON and hand-built ASTs all reach it unchecked.
+    if (typeof value !== 'number') {
+      throw new Error(`Expected number, got ${typeof value}: ${JSON.stringify(value)}`)
+    }
+
+    if (Number.isNaN(value)) {
       return 'NULL'
     }
 
