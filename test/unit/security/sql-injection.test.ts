@@ -13,8 +13,10 @@
  */
 
 import { describe, it, expect } from '@jest/globals'
-import { select, update, deleteFrom, Eq, Raw, Sum, Count, Avg } from '../../../src/index'
+import { select, update, deleteFrom, Eq, EqCol, Raw, Sum, Count, Avg } from '../../../src/index'
 import { ClickHouseValueFormatter, ValueFormatter } from '../../../src/render/value-formatter'
+import { Migrator } from '../../../src/migrate/migrator'
+import { Migration } from '../../../src/migrate/migration'
 
 // The measure key that leaked 31 tenants' data through a query scoped to one.
 const LEAK_PAYLOAD = "v, (SELECT groupArray(concat(node_id,'=',toString(value))) FROM events) AS leak"
@@ -443,5 +445,87 @@ describe('narrowly-typed fields are validated at render time', () => {
       expect(formatter.formatNumber(Infinity)).toBe("'inf'")
       expect(formatter.formatNumber(null as never)).toBe('NULL')
     })
+  })
+})
+
+describe('join type and function name', () => {
+  it('rejects an injected join type through the public join() API', () => {
+    // join() takes the type as a caller parameter, so this needs no hand-built AST.
+    // 2.x rendered: FROM `e` INNER JOIN Z ON 1=1 -- JOIN `p` ON e.id = p.id
+    // where the trailing comment truncates the real join.
+    const query = select(['a'])
+      .from('e')
+      .join('inner JOIN Z ON 1=1 --' as never, 'p', Raw('e.id = p.id'))
+
+    expect(() => query.toSQL()).toThrow(/Invalid join type/)
+  })
+
+  it('still renders valid join types byte-identically', () => {
+    const inner = select(['a'])
+      .from('e')
+      .join('inner', 'p', { 'e.id': EqCol('p.id') }, 'p')
+      .toSQL()
+    expect(inner.sql).toBe('SELECT `a` FROM `e` INNER JOIN `p` AS `p` ON `e`.`id` = `p`.`id`')
+
+    const cross = select(['a']).from('e').join('cross', 'p', null).toSQL()
+    expect(cross.sql).toBe('SELECT `a` FROM `e` CROSS JOIN `p`')
+  })
+
+  it('rejects an injected function name', () => {
+    const query = select({ x: Sum('v') }).from('e')
+    ;(query as unknown as { query: { columns: { name: string }[] } }).query.columns[0].name =
+      'sum(1),(SELECT groupArray(id) FROM e)--'
+
+    expect(() => query.toSQL()).toThrow(/Invalid function name/)
+  })
+
+  it('still renders valid function calls byte-identically', () => {
+    expect(
+      select({ x: Sum('v') })
+        .from('e')
+        .toSQL().sql,
+    ).toBe('SELECT sum(`v`) AS `x` FROM `e`')
+  })
+})
+
+describe('migrator names reach DDL, so they are validated too', () => {
+  // Higher stakes than a SELECT: these run with the migration runner's privileges, and
+  // both arrive from configuration/environment rather than a hand-built AST.
+  const runner = { command: async () => undefined, query: async () => ({ data: [] }) } as never
+
+  it('rejects an injected migrations table name', () => {
+    expect(
+      () => new Migrator(runner, { migrationsTableName: 'migrations (x String) ENGINE=Log; DROP TABLE users; --' }),
+    ).toThrow(/Invalid migrationsTableName/)
+  })
+
+  it('rejects a table name that would truncate the DELETE predicate', () => {
+    // DELETE FROM <name> WHERE id = ?  ->  ... WHERE 1=1 -- WHERE id = ?
+    expect(() => new Migrator(runner, { migrationsTableName: 'migrations WHERE 1=1 --' })).toThrow(
+      /Invalid migrationsTableName/,
+    )
+  })
+
+  it('accepts the default and a qualified db.table name', () => {
+    expect(() => new Migrator(runner, {})).not.toThrow()
+    expect(() => new Migrator(runner, { migrationsTableName: 'meta.migrations' })).not.toThrow()
+  })
+
+  it('rejects an injected cluster name before it reaches ON CLUSTER', async () => {
+    class Noop extends Migration {
+      id = '1'
+      description = 'd'
+      async up(): Promise<void> {}
+      async down(): Promise<void> {}
+    }
+    const exec = (cluster: string) =>
+      (
+        new Noop() as unknown as {
+          executeSQL(r: unknown, sql: string, o: { cluster: string }): Promise<void>
+        }
+      ).executeSQL(runner, 'CREATE TABLE t (a String)', { cluster })
+
+    await expect(exec('c ON CLUSTER c2; DROP TABLE users; --')).rejects.toThrow(/Invalid cluster/)
+    await expect(exec('prod_cluster')).resolves.toBeUndefined()
   })
 })

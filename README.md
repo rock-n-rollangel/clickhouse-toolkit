@@ -204,6 +204,39 @@ canonical form. You only need to act if you were passing something outside the d
 set. Window names and `SETTINGS` keys must be plain identifiers — letters, digits and
 underscores, not starting with a digit — since both are emitted without backticks.
 
+### Join types, function names, and migrator names are validated
+
+**What changed.** `join()` takes the join type as a caller parameter, and it was
+uppercased and interpolated without being checked against the set its type declares:
+
+```typescript
+select(['a']).from('e').join('inner JOIN Z ON 1=1 --', 'p', Raw('e.id = p.id'))
+// 2.x:   SELECT `a` FROM `e` INNER JOIN Z ON 1=1 -- JOIN `p` ON e.id = p.id
+// 3.0.0: throws ValidationError
+```
+
+The trailing `--` truncated the real join, so the query silently joined a table of the
+caller's choosing. (`strictness`, on the same method, was already validated.) Function
+names in the expression tree are now validated as identifiers too — the last raw path in
+the renderer.
+
+The migrator gets the same treatment, where the stakes are higher: these names reach
+`CREATE` / `ALTER` / `DROP` and run with the migration runner's privileges, and both
+arrive from configuration rather than from code.
+
+- **`migrationsTableName`** (`CLICKHOUSE_MIGRATIONS_TABLE_NAME`) is interpolated into
+  `CREATE TABLE`, `SELECT`, `INSERT INTO` and `DELETE FROM`. A value of
+  `migrations WHERE 1=1 --` turned the record-removal statement into
+  `DELETE FROM migrations WHERE 1=1 -- WHERE id = ?`, dropping every migration record.
+  It is now validated when the `Migrator` is constructed, so a bad value fails
+  immediately rather than mid-migration. A qualified `db.table` is still accepted.
+- **`cluster`** (`CLICKHOUSE_CLUSTER`) is interpolated into `ON CLUSTER` for every
+  `CREATE`/`DROP`/`ALTER TABLE`.
+
+**Migration.** None for valid input: join types render byte-identically and are accepted
+case-insensitively, and ordinary table and cluster names are unaffected. Only values that
+were never valid identifiers now fail.
+
 ### String values escape backslashes
 
 **What changed.** `formatString` doubled `'` but left `\` untouched. This was a
