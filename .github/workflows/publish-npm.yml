@@ -87,9 +87,7 @@ jobs:
       # `sigstore` audience and succeeds independently of npm auth, so a signed
       # attestation is NOT evidence the registry accepted us. This shows whether a
       # token exchange against npm was attempted at all.
-      # TEMPORARY: provenance dropped to isolate whether its validation is what
-      # the registry refuses. Restore --provenance once the 403 is understood.
-      - run: npm publish --access public --loglevel=verbose
+      - run: npm publish --provenance --access public --loglevel=verbose
       # npm writes the full HTTP exchange here and it never reaches the step log.
       - name: Dump npm debug log
         if: failure()
