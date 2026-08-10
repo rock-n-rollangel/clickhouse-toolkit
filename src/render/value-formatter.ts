@@ -1,3 +1,5 @@
+import { readNonCode } from '../core/sql-text'
+
 /**
  * ValueFormatter - Type-aware SQL value formatting for direct value injection
  * Replaces parameter binding with direct value embedding in SQL strings
@@ -198,7 +200,7 @@ export class ClickHouseValueFormatter implements ValueFormatter {
     }
 
     let index = 0
-    return sql.replace(/\?/g, () => {
+    return this.mapPlaceholders(sql, () => {
       if (index >= values.length) {
         throw new Error(`Not enough values provided. Expected ${index + 1}, got ${values.length}`)
       }
@@ -211,12 +213,57 @@ export class ClickHouseValueFormatter implements ValueFormatter {
    * Validate that all placeholders have corresponding values
    */
   validatePlaceholders(sql: string, values: any[]): void {
-    const placeholderCount = (sql.match(/\?/g) || []).length
+    const placeholderCount = this.countPlaceholders(sql)
     if (placeholderCount !== values.length) {
       throw new Error(
         `Parameter count mismatch. SQL has ${placeholderCount} placeholders, but ${values.length} values provided`,
       )
     }
+  }
+
+  /**
+   * Walk the SQL once and rewrite only the `?` characters that are real parameter slots -
+   * those in ordinary SQL, not inside a string literal, a quoted identifier or a comment.
+   *
+   * A blind sql.replace(/\?/g, ...) treated every `?` as a slot. When the counts happened
+   * to line up nothing was raised at all, just silently wrong SQL:
+   *
+   *   "... WHERE label = 'why?' AND id = ?"  with [42, 'bob']
+   *   ->  ... WHERE label = 'why42' AND id = 'bob'
+   *
+   * The literal was corrupted *and* every later value bound one position to the left,
+   * writing the wrong data to the wrong column. The variant that threw "Not enough
+   * values provided" was the lucky case - it at least failed loudly.
+   *
+   * validatePlaceholders counted with the same naive pattern, so it agreed with the bug
+   * rather than catching it; both now share these rules.
+   */
+  private mapPlaceholders(sql: string, replace: () => string): string {
+    let out = ''
+    let i = 0
+
+    while (i < sql.length) {
+      const region = readNonCode(sql, i)
+      if (region) {
+        out += sql.slice(i, region.end)
+        i = region.end
+        continue
+      }
+      out += sql[i] === '?' ? replace() : sql[i]
+      i++
+    }
+
+    return out
+  }
+
+  /** Count real parameter slots, by the same rules as {@link mapPlaceholders}. */
+  private countPlaceholders(sql: string): number {
+    let count = 0
+    this.mapPlaceholders(sql, () => {
+      count++
+      return '?'
+    })
+    return count
   }
 }
 

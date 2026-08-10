@@ -1,3 +1,5 @@
+import { readNonCode } from '../core/sql-text'
+
 /**
  * Split a SQL script into individual statements.
  *
@@ -16,7 +18,6 @@ export function splitSqlStatements(sql: string): string[] {
   let current = ''
   let hasContent = false
   let i = 0
-  const n = sql.length
 
   const flush = (): void => {
     if (hasContent) statements.push(current.trim())
@@ -24,60 +25,18 @@ export function splitSqlStatements(sql: string): string[] {
     hasContent = false
   }
 
-  while (i < n) {
+  while (i < sql.length) {
+    // Literals and comments are copied through whole; only a literal counts as content,
+    // so a comment-only fragment is still dropped.
+    const region = readNonCode(sql, i)
+    if (region) {
+      current += sql.slice(i, region.end)
+      if (region.kind === 'literal') hasContent = true
+      i = region.end
+      continue
+    }
+
     const ch = sql[i]
-    const next = sql[i + 1]
-
-    // Line comment: `-- ...` or `# ...` up to end of line.
-    if ((ch === '-' && next === '-') || ch === '#') {
-      const nl = sql.indexOf('\n', i)
-      const end = nl === -1 ? n : nl
-      current += sql.slice(i, end)
-      i = end
-      continue
-    }
-
-    // Block comment: `/* ... */`.
-    if (ch === '/' && next === '*') {
-      const close = sql.indexOf('*/', i + 2)
-      const end = close === -1 ? n : close + 2
-      current += sql.slice(i, end)
-      i = end
-      continue
-    }
-
-    // String literal or quoted identifier.
-    if (ch === "'" || ch === '"' || ch === '`') {
-      const quote = ch
-      current += ch
-      hasContent = true
-      i++
-      while (i < n) {
-        const c = sql[i]
-        // Backslash escape (single-quoted strings support \' in ClickHouse).
-        if (c === '\\' && quote === "'" && i + 1 < n) {
-          current += sql.slice(i, i + 2)
-          i += 2
-          continue
-        }
-        if (c === quote) {
-          // Doubled quote is an escaped quote, not a terminator.
-          if (sql[i + 1] === quote) {
-            current += quote + quote
-            i += 2
-            continue
-          }
-          current += c
-          i++
-          break
-        }
-        current += c
-        i++
-      }
-      continue
-    }
-
-    // Statement terminator.
     if (ch === ';') {
       flush()
       i++
@@ -141,28 +100,20 @@ export function applyOnCluster(sql: string, cluster: string): string {
   let atStatementHead = true
 
   while (i < n) {
+    // Literals, quoted identifiers and comments are copied through untouched. A comment
+    // does not end the statement head (so `-- note` above a CREATE still rewrites it);
+    // a literal does, since it is real SQL content.
+    const region = readNonCode(sql, i)
+    if (region) {
+      out += sql.slice(i, region.end)
+      if (region.kind === 'literal') atStatementHead = false
+      i = region.end
+      continue
+    }
+
     const ch = sql[i]
-    const next = sql[i + 1]
 
-    // Line comment — copied verbatim; does not end the statement head.
-    if ((ch === '-' && next === '-') || ch === '#') {
-      const nl = sql.indexOf('\n', i)
-      const end = nl === -1 ? n : nl
-      out += sql.slice(i, end)
-      i = end
-      continue
-    }
-
-    // Block comment — copied verbatim; does not end the statement head.
-    if (ch === '/' && next === '*') {
-      const close = sql.indexOf('*/', i + 2)
-      const end = close === -1 ? n : close + 2
-      out += sql.slice(i, end)
-      i = end
-      continue
-    }
-
-    // Whitespace — copied; does not end the statement head.
+    // Whitespace does not end the statement head.
     if (/\s/.test(ch)) {
       out += ch
       i++
@@ -173,36 +124,6 @@ export function applyOnCluster(sql: string, cluster: string): string {
       out += ch
       i++
       atStatementHead = true
-      continue
-    }
-
-    // A string literal or quoted identifier reached here is not a DDL head, so it is
-    // copied verbatim — this is what keeps 'DROP TABLE' inside a literal intact.
-    if (ch === "'" || ch === '"' || ch === '`') {
-      const quote = ch
-      out += ch
-      i++
-      while (i < n) {
-        const c = sql[i]
-        if (c === '\\' && quote === "'" && i + 1 < n) {
-          out += sql.slice(i, i + 2)
-          i += 2
-          continue
-        }
-        if (c === quote) {
-          if (sql[i + 1] === quote) {
-            out += quote + quote
-            i += 2
-            continue
-          }
-          out += c
-          i++
-          break
-        }
-        out += c
-        i++
-      }
-      atStatementHead = false
       continue
     }
 
