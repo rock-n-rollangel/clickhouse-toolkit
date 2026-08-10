@@ -20,7 +20,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git@github.com:rock-n-rollangel/clickhouse-toolkit.git"
+    "url": "git+https://github.com/rock-n-rollangel/clickhouse-toolkit.git"
   },
   "engines": {
     "node": ">=16"
