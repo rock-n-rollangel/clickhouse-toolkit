@@ -262,7 +262,7 @@ describe('Error Handling E2E Tests', () => {
         .run(queryRunner) // This will succeed in ClickHouse, but tests the pattern
 
       // Verify both records exist (ClickHouse behavior)
-      const results = await select(['count()']).from(testTableName).run(queryRunner)
+      const results = await select([Count()]).from(testTableName).run(queryRunner)
 
       expect(parseInt(results[0]['count()'])).toBe(2)
     })
@@ -415,7 +415,11 @@ describe('Error Handling E2E Tests', () => {
     it('should handle temporary connection failures', async () => {
       // This test simulates a scenario where connection might be temporarily unavailable
       const unstableRunner = createQueryRunner({
-        url: 'http://localhost:8123',
+        // From the config like every other field: hardcoding the default port
+        // aims this at whatever else is on 8123 when CLICKHOUSE_URL points
+        // elsewhere, and the connection check then fails for a reason that has
+        // nothing to do with retries.
+        url: DEFAULT_TEST_CONFIG.url,
         username: DEFAULT_TEST_CONFIG.username,
         password: DEFAULT_TEST_CONFIG.password,
         database: DEFAULT_TEST_CONFIG.database,
@@ -575,7 +579,7 @@ describe('Error Handling E2E Tests', () => {
       await insertInto(testTableName).columns(['id', 'name', 'description']).values(specialData).run(queryRunner)
 
       // Verify all data was stored correctly
-      const results = await select(['count()']).from(testTableName).run(queryRunner)
+      const results = await select([Count()]).from(testTableName).run(queryRunner)
 
       expect(parseInt(results[0]['count()'])).toBe(4)
 

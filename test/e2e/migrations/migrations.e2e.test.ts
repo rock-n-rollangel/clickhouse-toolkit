@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals'
-import { Migrator, SimpleMigration, select, insertInto, Eq } from '../../../src/index'
+import { Migrator, SimpleMigration, select, insertInto, Eq, Count } from '../../../src/index'
 import { testSetup, DEFAULT_TEST_CONFIG } from '../setup/test-setup'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -678,7 +678,7 @@ DROP TABLE ${DEFAULT_TEST_CONFIG.database}.${testTable2Name};
       await migrator.seed(seeder)
 
       // Verify seeding worked
-      const results = await select(['count()']).from(testTableName).run(queryRunner)
+      const results = await select([Count()]).from(testTableName).run(queryRunner)
 
       expect(parseInt(results[0]['count()'] as string)).toBe(3)
 

@@ -358,8 +358,8 @@ describe('CaseBuilder E2E Tests', () => {
   describe('SQL Generation Verification', () => {
     it('should generate correct SQL for simple case', () => {
       const userStatus = Case()
-        .when({ status: Eq('active') }, Column('Active User'))
-        .else(Column('Inactive User'))
+        .when({ status: Eq('active') }, Value('Active User'))
+        .else(Value('Inactive User'))
 
       const query = select({
         id: 'id',

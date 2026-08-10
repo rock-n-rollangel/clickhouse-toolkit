@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals'
-import { select, Eq, Gt, Gte, In, Exists, NotExists, EqCol, Count, Sum, Avg } from '../../../src/index'
+import { select, Eq, Gt, Gte, In, Exists, NotExists, EqCol, Count, Sum, Avg, Max } from '../../../src/index'
 import { testSetup } from '../setup/test-setup'
 
 describe('Subqueries E2E Tests', () => {
@@ -229,7 +229,7 @@ describe('Subqueries E2E Tests', () => {
     })
 
     it('should execute Eq with scalar subquery', async () => {
-      const maxAge = select(['max(age)']).from('users')
+      const maxAge = select([Max('age')]).from('users')
 
       const results = await select(['id', 'name', 'age'])
         .from('users')

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals'
-import { insertInto, select } from '../../../src/index'
+import { insertInto, select, Count } from '../../../src/index'
 import { testSetup, DEFAULT_TEST_CONFIG } from '../setup/test-setup'
 
 describe('InsertBuilder E2E Tests', () => {
@@ -229,7 +229,7 @@ describe('InsertBuilder E2E Tests', () => {
       await insertInto(testTableName).columns(['id', 'name', 'value']).values(batchData).run(queryRunner)
 
       // Verify insertions
-      const results = await select(['count() as total_count']).from(testTableName).run<any>(queryRunner)
+      const results = await select({ total_count: Count() }).from(testTableName).run<any>(queryRunner)
 
       expect(parseInt(results[0].total_count)).toBe(1000)
 
@@ -413,7 +413,7 @@ describe('InsertBuilder E2E Tests', () => {
   //       .run(queryRunner)
 
   //     // Verify data was copied
-  //     const sourceResults = await select(['count()']).from(`${testTableName}_source`).run<any>(queryRunner)
+  //     const sourceResults = await select([Count()]).from(`${testTableName}_source`).run<any>(queryRunner)
 
   //     const destResults = await select(['count()']).from(`${testTableName}_dest`).run<any>(queryRunner)
 
@@ -507,7 +507,7 @@ describe('InsertBuilder E2E Tests', () => {
       await insertInto(testTableName).columns(['id', 'name']).values([]).run(queryRunner)
 
       // Verify no data was inserted
-      const results = await select(['count()']).from(testTableName).run(queryRunner)
+      const results = await select([Count()]).from(testTableName).run(queryRunner)
 
       expect(parseInt(results[0]['count()'])).toBe(0)
 

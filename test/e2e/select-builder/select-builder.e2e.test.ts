@@ -20,6 +20,8 @@ import {
   EqCol,
   Count,
   Sum,
+  Avg,
+  Raw,
 } from '../../../src/index'
 import { testSetup } from '../setup/test-setup'
 
@@ -313,7 +315,7 @@ describe('SelectBuilder E2E Tests', () => {
     })
 
     it('should perform HAVING clause', async () => {
-      const results = await select(['user_id', 'sum(amount) as total_amount'])
+      const results = await select({ user_id: 'user_id', total_amount: Sum('amount') })
         .from('orders')
         .groupBy(['user_id'])
         .having({ total_amount: Gt(50) })
@@ -348,12 +350,13 @@ describe('SelectBuilder E2E Tests', () => {
 
   describe('Complex Queries', () => {
     it('should execute complex analytical query', async () => {
-      const results = await select([
-        'u.country',
-        'count(DISTINCT u.id) as user_count',
-        'sum(o.amount) as total_revenue',
-        'avg(o.amount) as avg_order_value',
-      ])
+      const results = await select({
+        country: 'u.country',
+        // count(DISTINCT ...) has no helper, so it goes through Raw explicitly.
+        user_count: Raw('count(DISTINCT u.id)'),
+        total_revenue: Sum('o.amount'),
+        avg_order_value: Avg('o.amount'),
+      })
         .from('users', 'u')
         .innerJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
         .where({
@@ -379,7 +382,7 @@ describe('SelectBuilder E2E Tests', () => {
         .from('users', 'u')
         .innerJoin('orders', { 'o.user_id': EqCol('u.id') }, 'o')
         .where({
-          'o.amount': Gt(select(['avg(amount) as avg_amount']).from('orders')),
+          'o.amount': Gt(select([Avg('amount')]).from('orders')),
         })
         .run<any>(queryRunner)
 

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/globals'
-import { select, insertInto, createQueryRunner, Eq, Between, In } from '../../../src/index'
+import { select, insertInto, createQueryRunner, Eq, Between, In, Count } from '../../../src/index'
 import { testSetup, DEFAULT_TEST_CONFIG } from '../setup/test-setup'
 
 describe('Performance E2E Tests', () => {
@@ -120,7 +120,7 @@ describe('Performance E2E Tests', () => {
     it('should respect max_threads setting', async () => {
       const startTime = Date.now()
 
-      const results = await select(['department', 'count() as total'])
+      const results = await select({ department: 'department', total: Count() })
         .from(performanceTableName)
         .groupBy(['department'])
         .settings({
@@ -150,7 +150,7 @@ describe('Performance E2E Tests', () => {
 
     it('should respect readonly setting', async () => {
       // Read-only query should work
-      const results = await select(['count()'])
+      const results = await select([Count()])
         .from(performanceTableName)
         .settings({
           readonly: 1,
@@ -176,7 +176,7 @@ describe('Performance E2E Tests', () => {
       const queryPromises = []
 
       for (let i = 0; i < concurrentQueries; i++) {
-        const promise = select(['department', 'count() as total'])
+        const promise = select({ department: 'department', total: Count() })
           .from(performanceTableName)
           .groupBy(['department'])
           .settings({
@@ -241,7 +241,7 @@ describe('Performance E2E Tests', () => {
       const executionTime = Date.now() - startTime
 
       // Verify insertion
-      const countResults = await select(['count()']).from(insertTableName).run(queryRunner)
+      const countResults = await select([Count()]).from(insertTableName).run(queryRunner)
 
       expect(parseInt(countResults[0]['count()'])).toBe(5000)
       expect(executionTime).toBeLessThan(10000) // Should complete within 10 seconds
@@ -355,7 +355,7 @@ describe('Performance E2E Tests', () => {
     it('should provide query execution metrics', async () => {
       const startTime = Date.now()
 
-      const results = await select(['department', 'count() as total'])
+      const results = await select({ department: 'department', total: Count() })
         .from(performanceTableName)
         .groupBy(['department'])
         .orderBy([{ column: 'total', direction: 'DESC' }])
