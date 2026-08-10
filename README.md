@@ -276,6 +276,47 @@ alone deliberately — add the clause yourself in those migrations.
 **Migration.** None, beyond DDL migrations with a cluster configured now succeeding
 where they previously failed.
 
+### Placeholders inside literals and comments are no longer substituted
+
+**What changed.** `injectValues` replaced every `?` in the SQL, with no idea which ones
+were real parameter slots. A `?` inside a string literal consumed a value:
+
+```typescript
+formatter.injectValues("SELECT * FROM t WHERE label = 'why?' AND id = ?", [42, 'bob'])
+// 2.x:   SELECT * FROM t WHERE label = 'why42' AND id = 'bob'
+// 3.0.0: SELECT * FROM t WHERE label = 'why?' AND id = 42
+```
+
+Note what 2.x did there: the literal was corrupted **and** every later value bound one
+position to the left, writing the wrong data to the wrong column — with nothing thrown.
+The variant that failed with `Not enough values provided` was the lucky case, because at
+least it was loud. `validatePlaceholders` counted with the same naive pattern, so it
+agreed with the bug rather than catching it; both now share one set of rules.
+
+Literals (`'…'`, `"…"`, backticks, including `''` doubling and `\'` escapes) and `--`,
+`#` and block comments are all skipped.
+
+**Migration.** None, unless you were compensating for the bug by padding your value
+array to match the miscount — remove that padding.
+
+### `QueryRunner.insert()` validates its table and columns
+
+**What changed.** `insert()` handed `table` and `columns` to `@clickhouse/client`, which
+builds `INSERT INTO <table> (<columns>) FORMAT <format>` by interpolation, quoting and
+validating neither. The builder's INSERT path had run both through `quoteIdentifier` all
+along, so the same operation was guarded through one route and wide open through the
+other — the same asymmetry this release removed from `quoteIdentifier` itself.
+
+```typescript
+runner.insert({ table: 't (x) SELECT * FROM secrets --', values: [] })
+// 3.0.0: throws ValidationError
+```
+
+Both are now validated at the toolkit's own boundary. Because neither is backtick-quoted
+downstream, hyphens are not accepted here — a table named `user-profiles` works through
+the query builder, which quotes it, but must be renamed to be used with `insert()`. A
+qualified `db.table` is accepted.
+
 ### String values escape backslashes
 
 **What changed.** `formatString` doubled `'` but left `\` untouched. This was a
