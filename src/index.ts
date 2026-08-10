@@ -11,6 +11,7 @@ export * from './core/operators'
 export * from './core/errors'
 export * from './core/logger'
 export * from './core/validator'
+export * from './core/numeric-coercion'
 export * from './builder/predicate-utils'
 export * from './builder/case-builder'
 

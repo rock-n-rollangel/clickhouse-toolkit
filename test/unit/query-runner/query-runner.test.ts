@@ -202,6 +202,42 @@ describe('QueryRunner', () => {
       ])
     })
 
+    // The JSON response's `meta` block is the only thing distinguishing the
+    // number 15 from the string "15" after parsing, and ClickHouse quotes
+    // 64-bit integers because they do not survive a JS number.
+    it('should coerce quoted 64-bit integers using the response meta', async () => {
+      const mockResult = {
+        json: jest.fn().mockResolvedValue({
+          meta: [
+            { name: 'bucket', type: 'String' },
+            { name: 'readings', type: 'UInt64' },
+            { name: 'huge', type: 'UInt64' },
+          ],
+          data: [{ bucket: '2026-07-11', readings: '15', huge: '18446744073709551615' }],
+        } as never),
+      }
+
+      mockClient.query.mockResolvedValue(mockResult)
+
+      const result = await queryRunner.execute({ sql: 'SELECT bucket, count() AS readings FROM events' })
+
+      // readings becomes a number; `huge` stays a string because coercing it
+      // would silently lose precision.
+      expect(result).toEqual([{ bucket: '2026-07-11', readings: 15, huge: '18446744073709551615' }])
+    })
+
+    it('should leave a meta-less array response untouched', async () => {
+      const mockResult = {
+        json: jest.fn().mockResolvedValue([{ readings: '15' } as never] as never),
+      }
+
+      mockClient.query.mockResolvedValue(mockResult)
+
+      const result = await queryRunner.execute({ sql: 'SELECT count() AS readings FROM events' })
+
+      expect(result).toEqual([{ readings: '15' }])
+    })
+
     it('should execute query with settings', async () => {
       const request: QueryRequest = {
         sql: 'SELECT * FROM large_table',

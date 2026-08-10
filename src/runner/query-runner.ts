@@ -15,6 +15,7 @@ import {
 } from '../core/errors'
 import { Logger, LoggerContext, createLoggerContext, setGlobalLogger } from '../core/logger'
 import { assertSqlIdentifier } from '../core/validator'
+import { ClickHouseColumnMeta, coerceNumericColumns } from '../core/numeric-coercion'
 
 export interface QueryRunnerOptions {
   url: string
@@ -140,6 +141,14 @@ export class QueryRunner {
 
       const data = await result.json<T[]>()
       const finalData = Array.isArray(data) ? data : (data as any).data || []
+
+      // JSON responses carry a `meta` block naming each column's type, which is
+      // the only way to tell a genuine number from ClickHouse's quoting of one:
+      // 64-bit-and-wider integers arrive as strings because they do not survive
+      // a JS number. Without this, a `count()` reached callers as "15". Formats
+      // that carry no meta (JSONEachRow parses to a bare array) pass through.
+      const meta = Array.isArray(data) ? undefined : ((data as any).meta as ClickHouseColumnMeta[] | undefined)
+      coerceNumericColumns(finalData, meta)
 
       queryLogger.info('Query executed successfully', {
         resultCount: finalData.length,
