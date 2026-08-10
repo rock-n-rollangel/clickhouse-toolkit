@@ -14,6 +14,7 @@ import {
   createValidationError,
 } from '../core/errors'
 import { Logger, LoggerContext, createLoggerContext, setGlobalLogger } from '../core/logger'
+import { assertSqlIdentifier } from '../core/validator'
 
 export interface QueryRunnerOptions {
   url: string
@@ -202,6 +203,16 @@ export class QueryRunner {
    * Insert data using ClickHouse client's native insert method
    */
   async insert(request: InsertRequest): Promise<void> {
+    // @clickhouse/client builds this statement by interpolation -
+    //   `INSERT INTO ${params.table.trim()}${columnsPart} FORMAT ${format}`
+    // with `columnsPart` being `(${params.columns.join(', ')})` - and quotes or validates
+    // neither part. The builder's INSERT path already runs both through quoteIdentifier,
+    // so without this the same operation would be guarded through one route and wide open
+    // through the other. Validated at our own boundary rather than by patching the client.
+    // Neither part is backtick-quoted downstream, so hyphens are not permitted here.
+    assertSqlIdentifier(request.table, 'insert table', true)
+    request.columns?.forEach((column) => assertSqlIdentifier(column, 'insert column'))
+
     const context = this.createContext({ sql: `INSERT INTO ${request.table}`, settings: {} })
     const queryLogger = this.logger.withQueryId(context.queryId).withOperation('insert')
 
