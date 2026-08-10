@@ -6,6 +6,10 @@ name: Node.js Package
 on:
   release:
     types: [created]
+  # Lets a publish be retried against an existing tag without deleting and
+  # recreating its release: `gh workflow run publish-npm.yml --ref v3.0.0`
+  # publishes exactly the tagged content.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -60,10 +64,15 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      # Deliberately NO registry-url. It makes setup-node write an .npmrc holding
+      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` and inject a literal
+      # `XXXXX-XXXXX-XXXXX-XXXXX` placeholder when no token is supplied — so npm
+      # authenticates with that garbage instead of exchanging the OIDC token, and
+      # returns 403 without ever attempting trusted publishing. registry.npmjs.org
+      # is the default registry anyway, so nothing is lost by omitting it.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org/
       # Trusted publishing needs npm >= 11.5.1; Node 22 ships 10.x.
       - run: npm install -g npm@latest
       - run: npm ci
