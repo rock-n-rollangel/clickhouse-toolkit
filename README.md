@@ -237,6 +237,45 @@ arrive from configuration rather than from code.
 case-insensitively, and ordinary table and cluster names are unaffected. Only values that
 were never valid identifiers now fail.
 
+### `ON CLUSTER` now works at all
+
+**What changed.** `ON CLUSTER` was inserted *before* the table name, so setting
+`CLICKHOUSE_CLUSTER` produced SQL ClickHouse cannot parse:
+
+```sql
+-- 2.x emitted this, which fails with SYNTAX_ERROR (code 62) at the CLUSTER token
+CREATE TABLE ON CLUSTER prod_cluster t (a String) ENGINE = Memory
+
+-- 3.0.0 emits the correct grammar
+CREATE TABLE t ON CLUSTER prod_cluster (a String) ENGINE = Memory
+```
+
+If you tried `ON CLUSTER` before and gave up because every DDL migration failed: that
+was this bug, not your configuration. The feature has never worked, which is also why
+changing the emitted SQL carries no compatibility risk — nothing could have depended on
+output that always errored.
+
+The clause now goes after the (optionally qualified) table name, for
+`CREATE TABLE [IF NOT EXISTS]`, `DROP TABLE [IF EXISTS]` and `ALTER TABLE`. Three
+further problems in the old three-`replace()` approach are fixed with it:
+
+- **String literals and comments are no longer rewritten.** A migration containing
+  `-- CREATE TABLE foo` in a comment, or seed data like
+  `INSERT INTO log VALUES ('a; CREATE TABLE evil (x String)')`, used to be mangled.
+- **It no longer cascades.** Text inserted by one pass was rewritten again by the next.
+- **`IF NOT EXISTS` / `IF EXISTS` and `db.table` are handled**, rather than pushing the
+  clause in front of them.
+
+A statement that already carries its own `ON CLUSTER` is left untouched, and rewriting
+happens only at a statement head, so a DDL keyword appearing mid-statement is ignored.
+
+**Not covered:** only `TABLE` statements are rewritten, matching the previous behaviour.
+`CREATE MATERIALIZED VIEW` and `CREATE DICTIONARY` also accept `ON CLUSTER` but are left
+alone deliberately — add the clause yourself in those migrations.
+
+**Migration.** None, beyond DDL migrations with a cluster configured now succeeding
+where they previously failed.
+
 ### String values escape backslashes
 
 **What changed.** `formatString` doubled `'` but left `\` untouched. This was a

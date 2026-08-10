@@ -88,7 +88,7 @@ describe('Migration', () => {
       await migration.up(mockQueryRunner, clusterOptions)
 
       expect(mockQueryRunner.command).toHaveBeenCalledWith({
-        sql: 'CREATE TABLE ON CLUSTER test_cluster test (id UInt32) ENGINE = MergeTree() ORDER BY id',
+        sql: 'CREATE TABLE test ON CLUSTER test_cluster (id UInt32) ENGINE = MergeTree() ORDER BY id',
       })
     })
   })
@@ -111,7 +111,7 @@ describe('Migration', () => {
       await migration.down(mockQueryRunner, clusterOptions)
 
       expect(mockQueryRunner.command).toHaveBeenCalledWith({
-        sql: 'DROP TABLE ON CLUSTER test_cluster test',
+        sql: 'DROP TABLE test ON CLUSTER test_cluster',
       })
     })
   })
@@ -254,7 +254,7 @@ describe('SimpleMigration', () => {
       await migration.up(mockQueryRunner, clusterOptions)
 
       expect(mockQueryRunner.command).toHaveBeenCalledWith({
-        sql: 'CREATE TABLE ON CLUSTER test_cluster users (id UInt32, name String) ENGINE = MergeTree() ORDER BY id',
+        sql: 'CREATE TABLE users ON CLUSTER test_cluster (id UInt32, name String) ENGINE = MergeTree() ORDER BY id',
       })
     })
   })
@@ -277,7 +277,7 @@ describe('SimpleMigration', () => {
       await migration.down(mockQueryRunner, clusterOptions)
 
       expect(mockQueryRunner.command).toHaveBeenCalledWith({
-        sql: 'DROP TABLE ON CLUSTER test_cluster users',
+        sql: 'DROP TABLE users ON CLUSTER test_cluster',
       })
     })
   })
