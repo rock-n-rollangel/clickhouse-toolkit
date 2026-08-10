@@ -75,8 +75,20 @@ jobs:
           node-version: 22
       # Trusted publishing needs npm >= 11.5.1; Node 22 ships 10.x.
       - run: npm install -g npm@latest
+      # Records the version actually in use, since trusted publishing is silently
+      # unavailable below 11.5.1 and the failure then looks like a credential one.
+      - run: npm --version
       - run: npm ci
       - run: npm run build
       # --provenance is free once OIDC is in play, and publishes a signed
       # attestation linking the tarball to this workflow run and commit.
-      - run: npm publish --provenance --access public
+      #
+      # Verbose so the OIDC exchange is visible: provenance signing uses the
+      # `sigstore` audience and succeeds independently of npm auth, so a signed
+      # attestation is NOT evidence the registry accepted us. This shows whether a
+      # token exchange against npm was attempted at all.
+      - run: npm publish --provenance --access public --loglevel=verbose
+      # npm writes the full HTTP exchange here and it never reaches the step log.
+      - name: Dump npm debug log
+        if: failure()
+        run: cat /home/runner/.npm/_logs/*-debug-0.log
