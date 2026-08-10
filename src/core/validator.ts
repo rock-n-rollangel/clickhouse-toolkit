@@ -7,16 +7,39 @@ import { ValidationResult } from './ir'
 import { ValidationError, createValidationError } from './errors'
 import { Logger, LoggingComponent } from './logger'
 
-const PLAIN_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+/**
+ * The library has TWO identifier rules, and the difference between them is deliberate.
+ * They differ by exactly one character — a hyphen — so read this before "fixing" the
+ * apparent inconsistency by unifying them.
+ *
+ * Which rule applies depends entirely on whether the identifier gets wrapped in
+ * backticks when it is emitted:
+ *
+ *  - BACKTICKED_IDENTIFIER is for names the renderer wraps, as `user-profiles`. A hyphen
+ *    cannot escape backticks, and `user-profiles` is a legitimate ClickHouse table name,
+ *    so hyphens are allowed.
+ *  - BARE_IDENTIFIER is for names emitted with no quoting at all: WINDOW names, SETTINGS
+ *    keys, function names, the migrations table and cluster names, and the table and
+ *    columns handed to @clickhouse/client's insert(). Unquoted, a hyphen parses as the
+ *    subtraction operator, so `SETTINGS a-b = 1` does not name `a-b` at all.
+ *
+ * Merging these into one permissive rule would grant hyphens to every unquoted context
+ * and reopen the surface this release closed. If they ever must converge, the safe
+ * direction is the strict one.
+ */
+export const BARE_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/
+export const BACKTICKED_IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_-]*$/
 
 /**
- * Assert that a value is shaped like a SQL identifier, for the places where a name is
- * interpolated into a statement rather than passed as a value.
+ * Assert that a value is shaped like an identifier that will be emitted **bare** — see
+ * BARE_IDENTIFIER above for why that is the strict rule.
  *
- * Used by the migrator, where the stakes are higher than in a SELECT: these names reach
- * CREATE / ALTER / DROP and run with whatever privileges the migration runner holds, and
- * they arrive from configuration and environment variables - CLICKHOUSE_MIGRATIONS_TABLE_NAME,
- * CLICKHOUSE_CLUSTER - so a type annotation guarantees nothing about them at runtime.
+ * This is the single definition for every unquoted context: WINDOW names, SETTINGS keys
+ * and function names in the renderer; the migrations table and cluster names in the
+ * migrator, where these reach CREATE / ALTER / DROP and run with whatever privileges the
+ * migration runner holds; and QueryRunner.insert(), whose client interpolates them raw.
+ * Several arrive from configuration or environment variables, so a type annotation
+ * guarantees nothing about them at runtime.
  *
  * `qualified` additionally permits a single db.table prefix, each part validated.
  */
@@ -25,7 +48,7 @@ export function assertSqlIdentifier(value: unknown, field: string, qualified = f
   const valid =
     typeof value === 'string' &&
     parts.length <= 2 &&
-    parts.every((part) => typeof part === 'string' && PLAIN_IDENTIFIER.test(part))
+    parts.every((part) => typeof part === 'string' && BARE_IDENTIFIER.test(part))
 
   if (!valid) {
     throw createValidationError(

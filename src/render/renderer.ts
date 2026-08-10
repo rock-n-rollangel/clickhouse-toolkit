@@ -18,6 +18,7 @@ import {
 } from '../core/ir'
 import { Primitive } from '../core/ast'
 import { createValidationError } from '../core/errors'
+import { assertSqlIdentifier, BACKTICKED_IDENTIFIER } from '../core/validator'
 import { ClickHouseValueFormatter } from './value-formatter'
 import { Logger, LoggingComponent } from '../core/logger'
 
@@ -171,9 +172,7 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     if (query.windows && Object.keys(query.windows).length > 0) {
       const windowDecls = Object.entries(query.windows)
-        .map(
-          ([name, spec]) => `${this.renderUnquotedIdentifier(name, 'window name')} AS (${this.renderWindowSpec(spec)})`,
-        )
+        .map(([name, spec]) => `${assertSqlIdentifier(name, 'window name')} AS (${this.renderWindowSpec(spec)})`)
         .join(', ')
       sql += ` WINDOW ${windowDecls}`
     }
@@ -201,9 +200,7 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     if (query.settings) {
       const settings = Object.entries(query.settings)
-        .map(
-          ([key, value]) => `${this.renderUnquotedIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`,
-        )
+        .map(([key, value]) => `${assertSqlIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`)
         .join(', ')
       sql += ` SETTINGS ${settings}`
     }
@@ -271,9 +268,7 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     if (query.settings) {
       const settings = Object.entries(query.settings)
-        .map(
-          ([key, value]) => `${this.renderUnquotedIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`,
-        )
+        .map(([key, value]) => `${assertSqlIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`)
         .join(', ')
       sql += ` SETTINGS ${settings}`
     }
@@ -290,9 +285,7 @@ export class ClickHouseRenderer extends LoggingComponent {
 
     if (query.settings) {
       const settings = Object.entries(query.settings)
-        .map(
-          ([key, value]) => `${this.renderUnquotedIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`,
-        )
+        .map(([key, value]) => `${assertSqlIdentifier(key, 'settings key')} = ${this.formatSettingValue(value)}`)
         .join(', ')
       sql += ` SETTINGS ${settings}`
     }
@@ -463,7 +456,7 @@ export class ClickHouseRenderer extends LoggingComponent {
         // The last raw path in the renderer. Only a hand-built AST supplies a function
         // name today - the helpers in sql-functions.ts all pass fixed literals - but
         // Raw() is the supported route for anyone who genuinely wants to author SQL.
-        return `${this.renderUnquotedIdentifier(expr.functionName, 'function name')}(${args})`
+        return `${assertSqlIdentifier(expr.functionName, 'function name')}(${args})`
 
       case 'case':
         // TypeScript knows expr.caseCases exists for 'case' type
@@ -523,7 +516,7 @@ export class ClickHouseRenderer extends LoggingComponent {
           expr.ref.name,
         )
       }
-      return `${fnSql} OVER ${this.renderUnquotedIdentifier(expr.ref.name, 'window name')}`
+      return `${fnSql} OVER ${assertSqlIdentifier(expr.ref.name, 'window name')}`
     }
     this.validateFrameBoundOrder(expr.ref.spec)
     return `${fnSql} OVER (${this.renderWindowSpec(expr.ref.spec)})`
@@ -796,28 +789,6 @@ export class ClickHouseRenderer extends LoggingComponent {
     return this.renderKeyword(value, FRAME_TYPES, 'frame type')
   }
 
-  /**
-   * Validate an identifier that is emitted *without* backticks - a WINDOW name or a
-   * SETTINGS key. Both were interpolated raw, so a window name could declare arbitrary
-   * window definitions and a settings key could inject `FORMAT JSON --`, changing the
-   * response format and truncating the rest of the statement.
-   *
-   * Stricter than quoteIdentifier: hyphens are rejected here because there are no
-   * backticks to contain them - unquoted, a hyphen would parse as an operator.
-   */
-  private renderUnquotedIdentifier(value: unknown, field: string): string {
-    if (typeof value !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
-      throw createValidationError(
-        `Invalid ${field}: '${String(value)}' must be a plain identifier ` +
-          `(letters, digits and underscores, not starting with a digit).`,
-        undefined,
-        field,
-        value as never,
-      )
-    }
-    return value
-  }
-
   private quoteIdentifier(identifier: string): string {
     // Allow the star selector
     if (identifier === '*') {
@@ -829,28 +800,12 @@ export class ClickHouseRenderer extends LoggingComponent {
       return identifier
     }
 
-    // Allow table.column format
+    // Allow table.column format. Each part is validated by the shared bare-identifier
+    // rule, not the backticked one: the parts are quoted individually below, but keeping
+    // them strict preserves the pre-existing behaviour exactly.
     if (identifier.includes('.')) {
+      assertSqlIdentifier(identifier, 'identifier', true)
       const parts = identifier.split('.')
-      if (parts.length !== 2) {
-        throw createValidationError(
-          `Invalid identifier: '${identifier}' - table.column format expected`,
-          undefined,
-          'identifier',
-          identifier,
-        )
-      }
-      // Validate each part
-      parts.forEach((part) => {
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(part)) {
-          throw createValidationError(
-            `Invalid identifier: '${identifier}' contains invalid characters`,
-            undefined,
-            'identifier',
-            identifier,
-          )
-        }
-      })
       // Quote each part separately
       return `\`${parts[0]}\`.\`${parts[1]}\``
     }
@@ -860,7 +815,7 @@ export class ClickHouseRenderer extends LoggingComponent {
     // so the shape is validated instead of trusted. Hyphens are allowed because
     // `user-profiles` is a legitimate backtick-quoted ClickHouse table name and cannot
     // escape the quoting; parentheses, quotes, semicolons and whitespace are not.
-    if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(identifier)) {
+    if (!BACKTICKED_IDENTIFIER.test(identifier)) {
       throw createValidationError(
         `Invalid identifier: '${identifier}' is not a valid identifier. ` +
           `Identifiers may contain only letters, digits, underscores and hyphens, and may not start with a digit. ` +

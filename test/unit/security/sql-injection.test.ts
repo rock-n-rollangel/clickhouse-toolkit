@@ -529,3 +529,41 @@ describe('migrator names reach DDL, so they are validated too', () => {
     await expect(exec('prod_cluster')).resolves.toBeUndefined()
   })
 })
+
+describe('the two identifier rules are deliberately different', () => {
+  // These differ by one character - a hyphen - and the difference is load-bearing.
+  // A backticked name can contain one safely; a bare one cannot, because unquoted a
+  // hyphen parses as the subtraction operator. Pinned here so the distinction is
+  // enforced rather than only explained in a comment.
+  const HYPHENATED = 'user-profiles'
+
+  it('accepts a hyphenated name where the renderer backticks it', () => {
+    expect(select(['id']).from(HYPHENATED).toSQL().sql).toBe('SELECT `id` FROM `user-profiles`')
+  })
+
+  it('rejects a hyphenated name in every context emitted bare', () => {
+    // SETTINGS key
+    expect(() =>
+      select(['id'])
+        .from('e')
+        .settings({ [HYPHENATED]: 1 })
+        .toSQL(),
+    ).toThrow(/Invalid settings key/)
+
+    // WINDOW name
+    expect(() =>
+      select(['id'])
+        .from('e')
+        .window(HYPHENATED, { partitionBy: ['x'] })
+        .toSQL(),
+    ).toThrow(/Invalid window name/)
+  })
+
+  it('rejects a hyphenated part of a qualified name, which is quoted per part but kept strict', () => {
+    expect(() =>
+      select([`${HYPHENATED}.id`])
+        .from('e')
+        .toSQL(),
+    ).toThrow(/Invalid identifier/)
+  })
+})
