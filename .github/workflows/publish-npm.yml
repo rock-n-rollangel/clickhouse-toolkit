@@ -51,15 +51,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      # Mints the OIDC token npm exchanges for short-lived publish credentials.
+      # This replaces NPM_TOKEN entirely: there is no long-lived secret to expire,
+      # be scoped wrongly, or trip the account's 2FA-on-write policy — which is
+      # what returned a bare `403 Forbidden - PUT` here however the token was
+      # rotated. `packages: write` is gone with it; that governs GitHub Packages,
+      # not the npm registry, so it was never needed.
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org/
+      # Trusted publishing needs npm >= 11.5.1; Node 22 ships 10.x.
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run build
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      # --provenance is free once OIDC is in play, and publishes a signed
+      # attestation linking the tarball to this workflow run and commit.
+      - run: npm publish --provenance --access public
