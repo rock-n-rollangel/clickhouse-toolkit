@@ -55,12 +55,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # Mints the OIDC token npm exchanges for short-lived publish credentials.
-      # This replaces NPM_TOKEN entirely: there is no long-lived secret to expire,
-      # be scoped wrongly, or trip the account's 2FA-on-write policy — which is
-      # what returned a bare `403 Forbidden - PUT` here however the token was
-      # rotated. `packages: write` is gone with it; that governs GitHub Packages,
-      # not the npm registry, so it was never needed.
+      # Mints the OIDC token npm exchanges for short-lived publish credentials, so
+      # there is no long-lived NPM_TOKEN to expire, be scoped wrongly, or need an OTP
+      # in CI. `packages: write` is gone with it; that governs GitHub Packages, not
+      # the npm registry, so it was never needed.
+      #
+      # This is NOT what fixed the bare `403 Forbidden - PUT` that blocked 3.0.0 —
+      # see the note on the publish step. Trusted publishing is kept because it is
+      # the better credential story regardless.
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -68,8 +70,9 @@ jobs:
       # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` and inject a literal
       # `XXXXX-XXXXX-XXXXX-XXXXX` placeholder when no token is supplied — so npm
       # authenticates with that garbage instead of exchanging the OIDC token, and
-      # returns 403 without ever attempting trusted publishing. registry.npmjs.org
-      # is the default registry anyway, so nothing is lost by omitting it.
+      # fails auth without ever attempting trusted publishing (actions/setup-node
+      # #1551). registry.npmjs.org is the default registry anyway, so nothing is lost
+      # by omitting it.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -83,10 +86,18 @@ jobs:
       # --provenance is free once OIDC is in play, and publishes a signed
       # attestation linking the tarball to this workflow run and commit.
       #
-      # Verbose so the OIDC exchange is visible: provenance signing uses the
-      # `sigstore` audience and succeeds independently of npm auth, so a signed
-      # attestation is NOT evidence the registry accepted us. This shows whether a
-      # token exchange against npm was attempted at all.
+      # If this ever returns a bare `403 Forbidden - PUT` with no npm error message,
+      # suspect the payload before the credentials. 3.0.0 was refused that way with a
+      # granular token AND with OIDC, and never reached the 2FA challenge, because the
+      # 403 came from the Cloudflare WAF in front of registry.npmjs.org — the body was
+      # an HTML block page, not an npm response. It matched the SQL-injection payloads
+      # the README quoted verbatim while documenting the 3.0.0 fixes. npm relays the
+      # README in the publish body, so documentation alone can trip it; keep attack
+      # strings in the README written as `<placeholder>` fragments.
+      #
+      # To tell the two apart, point npm at a local proxy that logs the raw response
+      # (`--registry`, with a matching `_authToken` line), and use `--otp=000000` so a
+      # payload that gets through is rejected by npm rather than published.
       - run: npm publish --provenance --access public --loglevel=verbose
       # npm writes the full HTTP exchange here and it never reaches the step log.
       - name: Dump npm debug log
