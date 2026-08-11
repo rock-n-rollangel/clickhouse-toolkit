@@ -52,6 +52,10 @@ npm install clickhouse-toolkit
 3.0.0 closes two SQL-injection primitives. Both were verified against a live
 ClickHouse, and one of them was also silently corrupting data.
 
+The examples below show injected SQL as a `<placeholder>` rather than a pasteable
+payload — npm's publishing pipeline rejects a package whose README carries the literal
+strings. The shape of each attack, and the field that carried it, is unchanged.
+
 ### Identifiers must now be identifier-shaped
 
 **What changed.** Until 3.0.0, a column/alias/table string containing `(` was treated
@@ -147,12 +151,14 @@ outside TypeScript — plain JavaScript, a value parsed from JSON or a query str
 hand-built AST — could inject:
 
 ```typescript
-select(['id']).from('users').limit('1 UNION ALL SELECT 999')
-// 2.x:   SELECT `id` FROM `users` LIMIT 1 UNION ALL SELECT 999
+// `<appended SELECT>` stands for a second, attacker-chosen query smuggled in through a
+// set operator; `<appended statement>` for a statement after the `;`, DDL included.
+select(['id']).from('users').limit('1 <appended SELECT>')
+// 2.x:   SELECT `id` FROM `users` LIMIT 1 <appended SELECT>
 // 3.0.0: throws ValidationError
 
-select(['id']).from('users').limit(10, '5; DROP TABLE x')
-// 2.x:   ... LIMIT 10 OFFSET 5; DROP TABLE x
+select(['id']).from('users').limit(10, '5; <appended statement>')
+// 2.x:   ... LIMIT 10 OFFSET 5; <appended statement>
 // 3.0.0: throws ValidationError
 ```
 
@@ -182,17 +188,18 @@ swallowed every clause that followed:
 ```typescript
 select(['a'])
   .from('e')
-  .orderBy([{ column: 'a', direction: 'ASC LIMIT 1 UNION ALL SELECT groupArray(id) FROM e --' }])
+  .orderBy([{ column: 'a', direction: 'ASC LIMIT 1 <appended SELECT> --' }])
   .limit(5)
-// 2.x:   SELECT `a` FROM `e` ORDER BY `a` ASC LIMIT 1 UNION ALL SELECT groupArray(id) FROM e -- LIMIT 5
+// 2.x:   SELECT `a` FROM `e` ORDER BY `a` ASC LIMIT 1 <appended SELECT> -- LIMIT 5
 // 3.0.0: throws ValidationError
 ```
 
 The trailing `--` deleted the query's own `LIMIT 5`. The same field on a window `ORDER BY`
 had the identical hole. Also closed: window declaration names and `OVER` names
 (`.window('w) AS (), evil AS (', …)`), `SETTINGS` keys on `SELECT`/`UPDATE`/`DELETE`
-(`{'max_threads=1 FORMAT JSON -- ': 1}` injected a `FORMAT` change and truncated the
-statement), and window frame `type`, bound literals and offsets.
+(a key of `max_threads=1 FORMAT JSON` followed by a comment marker injected a `FORMAT`
+change and truncated the statement), and window frame `type`, bound literals and
+offsets.
 
 `formatNumber` is now type-checked too. `isNaN()` coercion rejected most non-numeric
 strings by accident, but anything `Number()` could parse was emitted verbatim —
@@ -210,8 +217,8 @@ underscores, not starting with a digit — since both are emitted without backti
 uppercased and interpolated without being checked against the set its type declares:
 
 ```typescript
-select(['a']).from('e').join('inner JOIN Z ON 1=1 --', 'p', Raw('e.id = p.id'))
-// 2.x:   SELECT `a` FROM `e` INNER JOIN Z ON 1=1 -- JOIN `p` ON e.id = p.id
+select(['a']).from('e').join('inner JOIN Z ON <always true> --', 'p', Raw('e.id = p.id'))
+// 2.x:   SELECT `a` FROM `e` INNER JOIN Z ON <always true> -- JOIN `p` ON e.id = p.id
 // 3.0.0: throws ValidationError
 ```
 
@@ -226,8 +233,9 @@ arrive from configuration rather than from code.
 
 - **`migrationsTableName`** (`CLICKHOUSE_MIGRATIONS_TABLE_NAME`) is interpolated into
   `CREATE TABLE`, `SELECT`, `INSERT INTO` and `DELETE FROM`. A value of
-  `migrations WHERE 1=1 --` turned the record-removal statement into
-  `DELETE FROM migrations WHERE 1=1 -- WHERE id = ?`, dropping every migration record.
+  `migrations WHERE <always true> --` turned the record-removal statement into
+  `DELETE FROM migrations WHERE <always true> -- WHERE id = ?`, dropping every migration
+  record.
   It is now validated when the `Migrator` is constructed, so a bad value fails
   immediately rather than mid-migration. A qualified `db.table` is still accepted.
 - **`cluster`** (`CLICKHOUSE_CLUSTER`) is interpolated into `ON CLUSTER` for every
@@ -328,7 +336,7 @@ With two caller-supplied values it was a full breakout, because the first value'
 trailing backslash consumed its own closing quote and the second supplied the SQL:
 
 ```sql
-SELECT count() FROM events WHERE node_status = 'x\' AND device_status = ' OR 1=1 --'
+SELECT count() FROM events WHERE node_status = 'x\' AND device_status = ' OR <always true> --'
 ```
 
 That returned the entire table, and the trailing `--` commented out every `WHERE`
